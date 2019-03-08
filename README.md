@@ -20,6 +20,11 @@ pip install xarray-ms
 
 # Run crystalball
 
+Activate the virtual environment where you installed codex-africanus, xarray and xarray-ms (see above)
+```
+source <name-of-virtualenv>/bin/activate
+```
+Run crystalball
 ```
 python <path_to_crystalball_repository>/crystalball.py <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-iuvw] [-sp]
 ```
