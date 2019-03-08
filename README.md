@@ -21,5 +21,5 @@ pip install xarray-ms
 # Run crystalball
 
 ```
-python crystalball.py <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-iuvw] [-sp]
+python <path_to_crystalball_repository>/crystalball.py <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-iuvw] [-sp]
 ```
