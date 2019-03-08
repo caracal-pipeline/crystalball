@@ -1,6 +1,6 @@
 # Applicability
 
-Currently supports prediction from a WSClean component list (see https://sourceforge.net/p/wsclean/wiki/ComponentList) into the MODEL_DATA column of a measurement set.
+Currently supports prediction from a WSClean list of delta components with (log-) polynomial spectral shape (https://sourceforge.net/p/wsclean/wiki/ComponentList) into the MODEL_DATA column of a measurement set.
 
 # Installation in a virtual environment
 
