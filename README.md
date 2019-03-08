@@ -1,3 +1,7 @@
+# Applicability
+
+Currently supports prediction from a WSClean component list (see https://sourceforge.net/p/wsclean/wiki/ComponentList) into the MODEL_DATA column of a measurement set.
+
 # Installation in a virtual environment
 
 Get crystalball and the required codex-africanus (by Simon Perkins)
