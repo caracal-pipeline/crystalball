@@ -154,7 +154,7 @@ def import_from_wsclean(wsclean_comp_list,dospec):
     bmin=bmin.astype('float64')/3600/180*np.pi
     bpa=wsclean_sources[:,wscl_hd['Orientation']]
     bpa[bpa=='']='0'
-    bpa=bpa.astype('float64')/180*np.pi-np.pi/2 # WSClean gives angles north-to-east (this is an assumption) but codex-africanus wants east-to-south
+    bpa=bpa.astype('float64')/180*np.pi
     if dospec:
         # Load spectral coefficients
         coeff=np.array([jj.replace('[','').replace(']','').split(',') for jj in wsclean_sources[:,wscl_hd['SpectralIndex']]]).astype('float64')
