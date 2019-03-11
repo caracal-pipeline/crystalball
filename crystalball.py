@@ -32,6 +32,7 @@ else:
 from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import phase_delay, predict_vis
 from africanus.model.coherency.dask import convert
+from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 
 def create_parser():
@@ -133,10 +134,10 @@ def import_from_wsclean(wsclean_comp_list,dospec):
     for hh in range(len(wscl_hd)):
         if 'ReferenceFrequency=' in wscl_hd[hh]: wscl_hd[hh]='ReferenceFrequency'
     wscl_hd=dict(zip(wscl_hd,range(len(wscl_hd))))
-    for hh in ['Ra','Dec','I','SpectralIndex','ReferenceFrequency','LogarithmicSI']:
+    for hh in ['Ra','Dec','I','SpectralIndex','ReferenceFrequency','LogarithmicSI','MajorAxis','MinorAxis','Orientation']:
         if hh not in wscl_hd: raise KeyError('"{0:s}" not in header of {1:s}'.format(hh,wsclean_comp_list))
     # Read WSclean component list array
-    wsclean_sources=np.loadtxt(wsclean_comp_list,skiprows=1,dtype=str,delimiter=',')
+    wsclean_sources=np.atleast_2d(np.loadtxt(wsclean_comp_list,skiprows=1,dtype=str,delimiter=','))
     # Convert Dec from dd.mm.ss.s to dd:mm:ss.s
     for jj in range(wsclean_sources.shape[0]):
         while wsclean_sources[jj,wscl_hd['Dec']].count('.')>1: wsclean_sources[jj,wscl_hd['Dec']]=wsclean_sources[jj,wscl_hd['Dec']].replace('.',':',1)
@@ -145,6 +146,15 @@ def import_from_wsclean(wsclean_comp_list,dospec):
     dec=np.array([Angle('{0:s} degrees'.format(ss[wscl_hd['Dec']])).rad for ss in wsclean_sources])
     # Load flux density at reference frequency
     fluxdens=wsclean_sources[:,wscl_hd['I']].astype('float64')
+    bmaj=wsclean_sources[:,wscl_hd['MajorAxis']]
+    bmaj[bmaj=='']='0'
+    bmaj=bmaj.astype('float64')/3600/180*np.pi
+    bmin=wsclean_sources[:,wscl_hd['MinorAxis']]
+    bmin[bmin=='']='0'
+    bmin=bmin.astype('float64')/3600/180*np.pi
+    bpa=wsclean_sources[:,wscl_hd['Orientation']]
+    bpa[bpa=='']='0'
+    bpa=bpa.astype('float64')/180*np.pi-np.pi/2 # WSClean gives angles north-to-east (this is an assumption) but codex-africanus wants east-to-south
     if dospec:
         # Load spectral coefficients
         coeff=np.array([jj.replace('[','').replace(']','').split(',') for jj in wsclean_sources[:,wscl_hd['SpectralIndex']]]).astype('float64')
@@ -156,13 +166,13 @@ def import_from_wsclean(wsclean_comp_list,dospec):
             sys.exit()
         else: logsi=np.unique(logsi)[0]
     else: coeff,refrq,logsi = None,None,None
-    return np.concatenate((ra[:,None],dec[:,None]),axis=1),np.concatenate((fluxdens[:,None],np.zeros((fluxdens.shape[0],3))),axis=1),coeff,refrq,logsi
+    return np.concatenate((ra[:,None],dec[:,None]),axis=1),np.concatenate((fluxdens[:,None],np.zeros((fluxdens.shape[0],3))),axis=1),coeff,refrq,logsi,np.stack((bmaj,bmin,bpa),axis=-1)
 
 @requires_optional("dask.array", "xarray", "xarrayms", opt_import_error)
 def predict(args):
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
-    radec,stokes,spec_coeff,ref_freq,log_spec_ind=import_from_wsclean(args.sky_model,args.spectra)
+    radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclean(args.sky_model,args.spectra)
 
     # OR set source data manually
     #radec = np.pi/180*np.array([
@@ -187,6 +197,10 @@ def predict(args):
 
     radec = da.from_array(radec, chunks=(args.model_chunks, 2))
     stokes = da.from_array(stokes, chunks=(args.model_chunks, 4))
+    if (gaussian_shape[:,:2]!=0).sum(): # testing only on bmaj,bmin
+        gaussian_components=True
+        gaussian_shape = da.from_array(gaussian_shape, chunks=(args.model_chunks, 3))
+    else: gaussian_components=False
 
     if args.spectra:
         spec_coeff = da.from_array(spec_coeff, chunks=(args.model_chunks, spec_coeff.shape[1]))
@@ -252,6 +266,8 @@ def predict(args):
 
         # (source, row, frequency)
         phase = phase_delay(lm, uvw, frequency)
+        if gaussian_components: phase *= gaussian(uvw, frequency, gaussian_shape)
+        # (source, frequency, corr_products)
         brightness = convert(spectrum if args.spectra else stokes, ["I", "Q", "U", "V"],
                              corr_schema(pol))
 
@@ -260,7 +276,7 @@ def predict(args):
         print('-------------------------------------------')
         print('Attempting phase-brightness einsum with "{0:s}"'.format(einsum_schema(pol,args.spectra)))
 
-        # (source, row, frequency, corr1, corr2)
+        # (source, row, frequency, corr_products)
         jones = da.einsum(einsum_schema(pol,args.spectra), phase, brightness)
         print('jones.shape       = {0:}'.format(jones.shape))
 
