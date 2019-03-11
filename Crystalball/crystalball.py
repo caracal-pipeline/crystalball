@@ -286,8 +286,3 @@ def predict(args):
     # Submit all graph computations in parallel
     with ProgressBar():
         dask.compute(writes)
-
-
-if __name__ == "__main__":
-    args = create_parser().parse_args()
-    predict(args)

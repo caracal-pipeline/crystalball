@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import Crystalball.main as pkg
+import sys
+
+pkg.main([a for a in sys.argv[1:]])
