@@ -226,16 +226,16 @@ def predict(args):
         if args.spectra:
             # flux density at reference frequency ...
             # ... for logarithmic polynomial functions
-            if log_spec_ind: Is=np.log(stokes[:,0,None])*frequency[None,:]**0
+            if log_spec_ind: Is=da.log(stokes[:,0,None])*frequency[None,:]**0
             # ... or for ordinary polynomial functions
             else: Is=stokes[:,0,None]*frequency[None,:]**0
             # additional terms of SED ...
             for jj in range(spec_coeff.shape[1]):
                 # ... for logarithmic polynomial functions
-                if log_spec_ind: Is+=spec_coeff[:,jj,None]*np.log((frequency[None,:]/ref_freq[:,None])**(jj+1))
+                if log_spec_ind: Is+=spec_coeff[:,jj,None]*da.log((frequency[None,:]/ref_freq[:,None])**(jj+1))
                 # ... or for ordinary polynomial functions
                 else: Is+=spec_coeff[:,jj,None]*(frequency[None,:]/ref_freq[:,None]-1)**(jj+1)
-            if log_spec_ind: Is=np.exp(Is)
+            if log_spec_ind: Is=da.exp(Is)
             Qs=da.zeros_like(Is)
             Us=da.zeros_like(Is)
             Vs=da.zeros_like(Is)
