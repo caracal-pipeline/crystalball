@@ -34,6 +34,7 @@ from africanus.rime.dask import phase_delay, predict_vis
 from africanus.model.coherency.dask import convert
 from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
+import africanus.model.wsclean
 
 def create_parser():
     p = argparse.ArgumentParser()
@@ -130,43 +131,30 @@ def einsum_schema(pol,dospec):
 
 def import_from_wsclean(wsclean_comp_list,dospec):
     # Read WSclean component list header
-    with open(wsclean_comp_list) as f: wscl_hd=f.readline().split('Format =')[1].strip().replace(' ','').split(',')
-    for hh in range(len(wscl_hd)):
-        if 'ReferenceFrequency=' in wscl_hd[hh]: wscl_hd[hh]='ReferenceFrequency'
-    wscl_hd=dict(zip(wscl_hd,range(len(wscl_hd))))
+    wsclean_sources = { label: np.array(value) for label, value in africanus.model.wsclean.load(wsclean_comp_list) }
     for hh in ['Ra','Dec','I','SpectralIndex','ReferenceFrequency','LogarithmicSI','MajorAxis','MinorAxis','Orientation']:
-        if hh not in wscl_hd: raise KeyError('"{0:s}" not in header of {1:s}'.format(hh,wsclean_comp_list))
-    # Read WSclean component list array
-    wsclean_sources=np.atleast_2d(np.loadtxt(wsclean_comp_list,skiprows=1,dtype=str,delimiter=','))
-    # Convert Dec from dd.mm.ss.s to dd:mm:ss.s
-    for jj in range(wsclean_sources.shape[0]):
-        while wsclean_sources[jj,wscl_hd['Dec']].count('.')>1: wsclean_sources[jj,wscl_hd['Dec']]=wsclean_sources[jj,wscl_hd['Dec']].replace('.',':',1)
-    # Convert Ra and Dec strings to radians
-    ra=np.array([Angle('{0:s} hours'.format(ss[wscl_hd['Ra']])).rad for ss in wsclean_sources])
-    dec=np.array([Angle('{0:s} degrees'.format(ss[wscl_hd['Dec']])).rad for ss in wsclean_sources])
+        if hh not in wsclean_sources: raise KeyError('"{0:s}" not in header of {1:s}'.format(hh,wsclean_comp_list))
+    ra=np.array(wsclean_sources['Ra'])
+    dec=np.array(wsclean_sources['Dec'])
     # Load flux density at reference frequency
-    fluxdens=wsclean_sources[:,wscl_hd['I']].astype('float64')
-    bmaj=wsclean_sources[:,wscl_hd['MajorAxis']]
-    bmaj[bmaj=='']='0'
-    bmaj=bmaj.astype('float64')/3600/180*np.pi
-    bmin=wsclean_sources[:,wscl_hd['MinorAxis']]
-    bmin[bmin=='']='0'
-    bmin=bmin.astype('float64')/3600/180*np.pi
-    bpa=wsclean_sources[:,wscl_hd['Orientation']]
-    bpa[bpa=='']='0'
-    bpa=bpa.astype('float64')/180*np.pi
+    fluxdens=wsclean_sources['I']
+    bmaj=wsclean_sources['MajorAxis']
+    bmin=wsclean_sources['MinorAxis']
+    bpa=wsclean_sources['Orientation']
     if dospec:
         # Load spectral coefficients
-        coeff=np.array([jj.replace('[','').replace(']','').split(',') for jj in wsclean_sources[:,wscl_hd['SpectralIndex']]]).astype('float64')
+        coeff=wsclean_sources['SpectralIndex']
         # Load reference frequency
-        refrq=wsclean_sources[:,wscl_hd['ReferenceFrequency']].astype('float64')
-        logsi=wsclean_sources[:,wscl_hd['LogarithmicSI']]=='true'
+        refrq=wsclean_sources['ReferenceFrequency']
+        logsi=wsclean_sources['LogarithmicSI']
         if np.unique(logsi).shape[0]>1:
             print('Mixed log and ordinary polynomial spectral coefficients in {0:s}. Cannot deal with that. Aborting.'.format(wsclean_comp_list))
             sys.exit()
         else: logsi=np.unique(logsi)[0]
     else: coeff,refrq,logsi = None,None,None
-    return np.concatenate((ra[:,None],dec[:,None]),axis=1),np.concatenate((fluxdens[:,None],np.zeros((fluxdens.shape[0],3))),axis=1),coeff,refrq,logsi,np.stack((bmaj,bmin,bpa),axis=-1)
+    zero = np.zeros_like(fluxdens)
+    
+    return np.stack((ra,dec),axis=1),np.stack((fluxdens, zero, zero, zero),axis=1),coeff,refrq,logsi,np.stack((bmaj,bmin,bpa),axis=-1)
 
 @requires_optional("dask.array", "xarray", "xarrayms", opt_import_error)
 def predict(args):
