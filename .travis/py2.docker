@@ -1,0 +1,13 @@
+FROM kernsuite/base:4
+RUN docker-apt-install python-pip \
+    python-casacore \
+    casacore-dev \
+    python-numpy \
+    python-setuptools \
+    libboost-python-dev \
+    libcfitsio-dev \
+    wcslib-dev
+ADD . /code
+WORKDIR /code
+RUN pip install .
+RUN python -c "import Crystalball.crystalball"
