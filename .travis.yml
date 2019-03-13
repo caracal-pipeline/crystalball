@@ -2,10 +2,9 @@ language: python
 matrix:
   include:
   - env: TARGET=py2
-  - env: TARGET=py3
-  - env: TARGET=mypy
+#  - env: TARGET=py3
+#  - env: TARGET=mypy
   allow_failures:
-  - env: TARGET=pep8
   - env: TARGET=mypy
 sudo: required
 services:
