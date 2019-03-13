@@ -21,6 +21,10 @@ pip install -e .[dask,scipy,astropy,python-casacore]
 pip install xarray
 pip install xarray-ms
 ```
+Pip install crystalball
+```
+pip install <path to crystalball>
+```
 
 # Run crystalball
 
@@ -30,5 +34,5 @@ source <name-of-virtualenv>/bin/activate
 ```
 Run crystalball
 ```
-python <path_to_crystalball_repository>/crystalball.py <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-iuvw] [-sp]
+crystalball <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-iuvw] [-sp]
 ```
