@@ -135,7 +135,8 @@ def import_from_wsclen(wsclean_comp_list):
     if np.unique(wsclean_comps['LogarithmicSI']).shape[0]>1:
         print('Mixed log and ordinary polynomial spectral coefficients in {0:s}. Cannot deal with that. Aborting.'.format(wsclean_comp_list))
         sys.exit()
-    return np.concatenate((wsclean_comps['Ra'][:,None],wsclean_comps['Dec'][:,None]),axis=1),\
+    return wsclean_comps['Type'],\
+           np.concatenate((wsclean_comps['Ra'][:,None],wsclean_comps['Dec'][:,None]),axis=1),\
            np.concatenate((wsclean_comps['I'][:,None],np.zeros((wsclean_comps['I'].shape[0],3))),axis=1),\
            wsclean_comps['SpectralIndex'],\
            wsclean_comps['ReferenceFrequency'],\
@@ -147,7 +148,7 @@ def import_from_wsclen(wsclean_comp_list):
 def predict(args):
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
-    radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclen(args.sky_model)
+    comp_type,radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclen(args.sky_model)
 
     # OR set source data manually
     #radec = np.pi/180*np.array([
@@ -172,7 +173,7 @@ def predict(args):
 
     radec = da.from_array(radec, chunks=(args.model_chunks, 2))
     stokes = da.from_array(stokes, chunks=(args.model_chunks, 4))
-    if (gaussian_shape[:,:2]!=0).sum(): # testing only on bmaj,bmin
+    if (comp_type=='GAUSSIAN').sum():
         gaussian_components=True
         gaussian_shape = da.from_array(gaussian_shape, chunks=(args.model_chunks, 3))
     else: gaussian_components=False
@@ -241,6 +242,8 @@ def predict(args):
 
         # (source, row, frequency)
         phase = phase_delay(lm, uvw, frequency)
+        # If at least one Gaussian component is present in the component list then all
+        # sources are modelled as Gaussian components (Delta components have zero width)
         if gaussian_components: phase *= gaussian(uvw, frequency, gaussian_shape)
         # (source, frequency, corr_products)
         brightness = convert(spectrum if args.spectra else stokes, ["I", "Q", "U", "V"],
@@ -254,6 +257,10 @@ def predict(args):
         # (source, row, frequency, corr_products)
         jones = da.einsum(einsum_schema(pol,args.spectra), phase, brightness)
         print('jones.shape       = {0:}'.format(jones.shape))
+        print('-------------------------------------------')
+        if gaussian_components: print('Some Gaussian sources found')
+        else: print('All sources are Delta functions')
+        print('-------------------------------------------')
 
         # Identify time indices
         _, time_index = da.unique(xds.TIME.data, return_inverse=True)
