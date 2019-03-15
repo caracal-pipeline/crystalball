@@ -45,7 +45,7 @@ def create_parser():
     p.add_argument("-sm", "--sky-model", default="sky-model.txt",
                    help="Name of file containing the sky model. Default is 'sky-model.txt'")
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
-                   help="Output visibility column. Default is '%default'")
+                   help="Output visibility column. Default is '%(default)s'")
     p.add_argument("-rc", "--row-chunks", type=int, default=10000,
                    help="Number of rows of input .MS that are processed in a single chunk. "
                         "Default is 10000.")
@@ -61,6 +61,11 @@ def create_parser():
     p.add_argument("-w", "--within", type=str, 
                    help="Optional. Give JS9 region file. Only sources within those regions will be "
                         "included.")
+    p.add_argument("-po", "--points-only", action="store_true",
+                   help="Select only point-type sources.")
+    p.add_argument("--max", type=int, default=0, metavar="N",
+                   help="Select only N brightest sources.")
+                        
 
     return p
 
@@ -137,24 +142,59 @@ def einsum_schema(pol,dospec):
         raise ValueError("corrs %d not in (1, 2, 4)" % corrs)
 
 
-def import_from_wsclean(wsclean_comp_list, include_regions=[]):
+def import_from_wsclean(wsclean_comp_list, include_regions=[], point_only=False, num=None):
     wsclean_comps=load(wsclean_comp_list)
     wsclean_comps=dict(zip([jj[0] for jj in wsclean_comps], [np.array(jj[1]) for jj in wsclean_comps]))
     if np.unique(wsclean_comps['LogarithmicSI']).shape[0]>1:
         print('Mixed log and ordinary polynomial spectral coefficients in {0:s}. Cannot deal with that. Aborting.'.format(wsclean_comp_list))
         sys.exit()
+        
+    # create a sorting by descending flux
+    sort_tuples = sorted([(flux, i) for i, flux in enumerate(wsclean_comps['I'])], reverse=True)
+    sort_index = [i for flux, i in sort_tuples]
+    
+    # re-sort all entries using this
+    wsclean_comps = { key: value[sort_index] for key, value in wsclean_comps.items() }
     
     print('{} contains {} components'.format(wsclean_comp_list, len(wsclean_comps['Type'])))
+    
+    # make mask of sources to include
+    include = np.ones_like(wsclean_comps['Type'], bool)
+
     if include_regions:
-        include = np.zeros(len(wsclean_comps['Type'], bool)
-        for isrc, (ra, dec) in enumerate(zip((wsclean_comps['Ra'], (wsclean_comps['Dec'])):
-            coord = SkyCoord(ra, dec)
-            for reg in include_regions:
-                if SkyCoord(ra, dec) in reg:
-                    include[isrc] = True
-                    break
-        print('{} of which fall within the {} inclusion region(s)'.format(len(include.sum()), len(include_regions))
-        wsclean_comps = { key: value[include] for key, value in wsclean_comps.items() }
+        include[:] = False
+        ## NB: regions is *supposed* to have a sensible "contains" interface, but it doesn't work as of Mar 2019. So hacking
+        ## a kludge for circular regions for now
+        from regions import CircleSkyRegion
+        if not all([type(reg) is CircleSkyRegion for reg in include_regions]):
+            print('Only circular DS( regions supported for now')
+            sys.exit()
+        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], unit="rad", frame=include_regions[0].center.frame)
+        include = (coord.separation(include_regions[0].center) <= include_regions[0].radius)
+        for reg in include_regions[1:]:
+            include |= coord.separation(reg.center) <= reg.radius
+        print('{} of which fall within the {} inclusion region(s)'.format(include.sum(), len(include_regions)))
+
+    # select points
+    if point_only:
+        include &= (wsclean_comps['Type'] == 'POINT')
+        print('{} of which are point sources'.format(include.sum()))
+    
+    # apply filters to component list
+    wsclean_comps = { key: value[include] for key, value in wsclean_comps.items() }
+    
+    # select limited number if asked
+    if num is not None:
+        wsclean_comps = { key: value[:num] for key, value in wsclean_comps.items() }
+        print('Selecting up to {} brightest sources'.format(num))
+    
+    # print if small subset
+    if num < 100 or include_regions:
+        for i, (srctype, flux) in enumerate(sorted(zip(wsclean_comps['I'], wsclean_comps['Type']), reverse=True)):
+            print('{}: {} {} Jy'.format(i, srctype, flux))
+
+    print('Total flux of {} selected components is {} Jy'.format(len(wsclean_comps['I']), wsclean_comps['I'].sum()))
+    
 
     return wsclean_comps['Type'],\
         np.concatenate((wsclean_comps['Ra'][:,None],wsclean_comps['Dec'][:,None]),axis=1),\
@@ -171,22 +211,30 @@ def predict(args):
     include_regions = []
     if args.within:
         from regions import read_ds9
-        include_regions = read_ds9(args.within)
+        import tempfile
+        # kludge because regions cries over "FK5", wants lowercase
+        with tempfile.NamedTemporaryFile() as tmpfile, open(args.within) as regfile:
+            tmpfile.write(regfile.read().lower())
+            tmpfile.flush()
+            include_regions = read_ds9(tmpfile.name)
+            print("read {} inclusion region(s) from {}".format(len(include_regions), args.within))
 
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
-    comp_type,radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclean(args.sky_model, include_regions=include_regions)
+    comp_type,radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclean(args.sky_model, include_regions=include_regions,
+            point_only=args.points_only,
+            num=args.max or None)
 
     # check output column
-    ms = casacore.tables.table(args.ms, readonly=True)
+    ms = casacore.tables.table(args.ms, readonly=False)
     if args.output_column not in ms.colnames():
         print('inserting new column {}'.format(args.output_column))
-        desc = self.ms.getcoldesc("DATA")
-        desc['name'] = args.output_column)
+        desc = ms.getcoldesc("DATA")
+        desc['name'] = args.output_column
         desc['comment'] = desc['comment'].replace(" ", "_")  # python version hates spaces, who knows why
-        dminfo = self.ms.getdminfo("DATA")
-        dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], args.output_column))
-        self.ms.addcols(desc, dminfo)
+        dminfo = ms.getdminfo("DATA")
+        dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], args.output_column)
+        ms.addcols(desc, dminfo)
     ms.close()
 
     # OR set source data manually
