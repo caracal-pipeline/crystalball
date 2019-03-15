@@ -63,8 +63,10 @@ def create_parser():
                         "included.")
     p.add_argument("-po", "--points-only", action="store_true",
                    help="Select only point-type sources.")
-    p.add_argument("--max", type=int, default=0, metavar="N",
+    p.add_argument("-ns", "--num-sources", type=int, default=0, metavar="N",
                    help="Select only N brightest sources.")
+    p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
+                   help="Explicitly set the number of worker threads.")
                         
 
     return p
@@ -223,7 +225,7 @@ def predict(args):
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
     comp_type,radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclean(args.sky_model, include_regions=include_regions,
             point_only=args.points_only,
-            num=args.max or None)
+            num=args.num_sources or None)
 
     # check output column
     ms = casacore.tables.table(args.ms, readonly=False)
@@ -369,5 +371,5 @@ def predict(args):
         writes.append(write)
 
     # Submit all graph computations in parallel
-    with ProgressBar():
+    with ProgressBar(), dask.config.set(num_workers=args.num_workers):
         dask.compute(writes)
