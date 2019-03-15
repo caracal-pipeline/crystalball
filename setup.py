@@ -5,6 +5,7 @@ from distutils.core import setup
 
 requirements = [
 "codex-africanus[dask,astropy,python-casacore,scipy]>=0.1.4",
+"regions"
 ]
 
 PACKAGE_NAME = 'crystalball'
