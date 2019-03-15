@@ -13,7 +13,7 @@ import sys
 
 
 try:
-    from astropy.coordinates import Angle
+    from astropy.coordinates import Angle, SkyCoord
 except ImportError as e:
     astropy_import_error = e
 else:
@@ -36,12 +36,16 @@ from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 from africanus.model.wsclean.file_model import load
 
+import casacore.tables
+
 def create_parser():
     p = argparse.ArgumentParser()
     p.add_argument("ms",
                    help="Input .MS file.")
     p.add_argument("-sm", "--sky-model", default="sky-model.txt",
                    help="Name of file containing the sky model. Default is 'sky-model.txt'")
+    p.add_argument("-o", "--output-column", default="MODEL_DATA",
+                   help="Output visibility column. Default is '%(default)s'")
     p.add_argument("-rc", "--row-chunks", type=int, default=10000,
                    help="Number of rows of input .MS that are processed in a single chunk. "
                         "Default is 10000.")
@@ -54,6 +58,17 @@ def create_parser():
     p.add_argument("-sp", "--spectra", action="store_true",
                    help="Optional. Model sources as non-flat spectra. The spectral "
                         "coefficients and reference frequency must be present in the sky model.")
+    p.add_argument("-w", "--within", type=str, 
+                   help="Optional. Give JS9 region file. Only sources within those regions will be "
+                        "included.")
+    p.add_argument("-po", "--points-only", action="store_true",
+                   help="Select only point-type sources.")
+    p.add_argument("-ns", "--num-sources", type=int, default=0, metavar="N",
+                   help="Select only N brightest sources.")
+    p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
+                   help="Explicitly set the number of worker threads.")
+                        
+
     return p
 
 
@@ -129,26 +144,100 @@ def einsum_schema(pol,dospec):
         raise ValueError("corrs %d not in (1, 2, 4)" % corrs)
 
 
-def import_from_wsclen(wsclean_comp_list):
+def import_from_wsclean(wsclean_comp_list, include_regions=[], point_only=False, num=None):
     wsclean_comps=load(wsclean_comp_list)
     wsclean_comps=dict(zip([jj[0] for jj in wsclean_comps], [np.array(jj[1]) for jj in wsclean_comps]))
     if np.unique(wsclean_comps['LogarithmicSI']).shape[0]>1:
         print('Mixed log and ordinary polynomial spectral coefficients in {0:s}. Cannot deal with that. Aborting.'.format(wsclean_comp_list))
         sys.exit()
+        
+    # create a sorting by descending flux
+    sort_tuples = sorted([(flux, i) for i, flux in enumerate(wsclean_comps['I'])], reverse=True)
+    sort_index = [i for flux, i in sort_tuples]
+    
+    # re-sort all entries using this
+    wsclean_comps = { key: value[sort_index] for key, value in wsclean_comps.items() }
+    
+    print('{} contains {} components'.format(wsclean_comp_list, len(wsclean_comps['Type'])))
+    
+    # make mask of sources to include
+    include = np.ones_like(wsclean_comps['Type'], bool)
+
+    if include_regions:
+        include[:] = False
+        ## NB: regions is *supposed* to have a sensible "contains" interface, but it doesn't work as of Mar 2019. So hacking
+        ## a kludge for circular regions for now
+        from regions import CircleSkyRegion
+        if not all([type(reg) is CircleSkyRegion for reg in include_regions]):
+            print('Only circular DS( regions supported for now')
+            sys.exit()
+        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], unit="rad", frame=include_regions[0].center.frame)
+        include = (coord.separation(include_regions[0].center) <= include_regions[0].radius)
+        for reg in include_regions[1:]:
+            include |= coord.separation(reg.center) <= reg.radius
+        print('{} of which fall within the {} inclusion region(s)'.format(include.sum(), len(include_regions)))
+
+    # select points
+    if point_only:
+        include &= (wsclean_comps['Type'] == 'POINT')
+        print('{} of which are point sources'.format(include.sum()))
+    
+    # apply filters to component list
+    wsclean_comps = { key: value[include] for key, value in wsclean_comps.items() }
+    
+    # select limited number if asked
+    if num is not None:
+        wsclean_comps = { key: value[:num] for key, value in wsclean_comps.items() }
+        print('Selecting up to {} brightest sources'.format(num))
+    
+    # print if small subset
+    if num < 100 or include_regions:
+        for i, (srctype, flux) in enumerate(sorted(zip(wsclean_comps['I'], wsclean_comps['Type']), reverse=True)):
+            print('{}: {} {} Jy'.format(i, srctype, flux))
+
+    print('Total flux of {} selected components is {} Jy'.format(len(wsclean_comps['I']), wsclean_comps['I'].sum()))
+    
+
     return wsclean_comps['Type'],\
-           np.concatenate((wsclean_comps['Ra'][:,None],wsclean_comps['Dec'][:,None]),axis=1),\
-           np.concatenate((wsclean_comps['I'][:,None],np.zeros((wsclean_comps['I'].shape[0],3))),axis=1),\
-           wsclean_comps['SpectralIndex'],\
-           wsclean_comps['ReferenceFrequency'],\
-           wsclean_comps['LogarithmicSI'][0],\
-           np.stack((wsclean_comps['MajorAxis'],wsclean_comps['MinorAxis'],wsclean_comps['Orientation']),axis=-1)
+        np.concatenate((wsclean_comps['Ra'][:,None],wsclean_comps['Dec'][:,None]),axis=1),\
+        np.concatenate((wsclean_comps['I'][:,None],np.zeros((wsclean_comps['I'].shape[0],3))),axis=1),\
+        wsclean_comps['SpectralIndex'],\
+        wsclean_comps['ReferenceFrequency'],\
+        wsclean_comps['LogarithmicSI'][0],\
+        np.stack((wsclean_comps['MajorAxis'],wsclean_comps['MinorAxis'],wsclean_comps['Orientation']),axis=-1)
 
 
 @requires_optional("dask.array", "xarray", "xarrayms", opt_import_error)
 def predict(args):
+    # get inclusion regions
+    include_regions = []
+    if args.within:
+        from regions import read_ds9
+        import tempfile
+        # kludge because regions cries over "FK5", wants lowercase
+        with tempfile.NamedTemporaryFile() as tmpfile, open(args.within) as regfile:
+            tmpfile.write(regfile.read().lower())
+            tmpfile.flush()
+            include_regions = read_ds9(tmpfile.name)
+            print("read {} inclusion region(s) from {}".format(len(include_regions), args.within))
+
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
-    comp_type,radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclen(args.sky_model)
+    comp_type,radec,stokes,spec_coeff,ref_freq,log_spec_ind,gaussian_shape=import_from_wsclean(args.sky_model, include_regions=include_regions,
+            point_only=args.points_only,
+            num=args.num_sources or None)
+
+    # check output column
+    ms = casacore.tables.table(args.ms, readonly=False)
+    if args.output_column not in ms.colnames():
+        print('inserting new column {}'.format(args.output_column))
+        desc = ms.getcoldesc("DATA")
+        desc['name'] = args.output_column
+        desc['comment'] = desc['comment'].replace(" ", "_")  # python version hates spaces, who knows why
+        dminfo = ms.getdminfo("DATA")
+        dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], args.output_column)
+        ms.addcols(desc, dminfo)
+    ms.close()
 
     # OR set source data manually
     #radec = np.pi/180*np.array([
@@ -275,12 +364,12 @@ def predict(args):
 
         # Assign visibilities to MODEL_DATA array on the dataset
         model_data = xr.DataArray(vis, dims=["row", "chan", "corr"])
-        xds = xds.assign(MODEL_DATA=model_data)
+        xds = xds.assign(**{args.output_column: model_data})
         # Create a write to the table
-        write = xds_to_table(xds, args.ms, ['MODEL_DATA'])
+        write = xds_to_table(xds, args.ms, [args.output_column])
         # Add to the list of writes
         writes.append(write)
 
     # Submit all graph computations in parallel
-    with ProgressBar():
+    with ProgressBar(), dask.config.set(num_workers=args.num_workers):
         dask.compute(writes)
