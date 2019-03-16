@@ -371,5 +371,10 @@ def predict(args):
         writes.append(write)
 
     # Submit all graph computations in parallel
-    with ProgressBar(), dask.config.set(num_workers=args.num_workers):
-        dask.compute(writes)
+    if args.num_workers:
+        with ProgressBar(), dask.config.set(num_workers=args.num_workers):
+            dask.compute(writes)
+    else:
+        with ProgressBar():
+            dask.compute(writes)
+
