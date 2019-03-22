@@ -5,6 +5,7 @@ from distutils.core import setup
 
 requirements = [
 "codex-africanus[complete]>=0.1.4",
+"xarray-ms",
 "regions"
 ]
 
