@@ -4,12 +4,12 @@ import os
 from distutils.core import setup
 
 requirements = [
-"codex-africanus[dask,astropy,python-casacore,scipy]>=0.1.4",
+"codex-africanus[complete]>=0.1.4",
 "regions"
 ]
 
 PACKAGE_NAME = 'crystalball'
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 setup(name = PACKAGE_NAME,
     version = __version__,
