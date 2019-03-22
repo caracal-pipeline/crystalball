@@ -2,8 +2,6 @@ language: python
 matrix:
   include:
   - env: TARGET=py2
-#  - env: TARGET=py3
-#  - env: TARGET=mypy
   allow_failures:
   - env: TARGET=mypy
 sudo: required
@@ -17,7 +15,7 @@ deploy:
   provider: pypi
   user: sphemakh
   password:
-    secure: A7WUW6quu3Cp7Oz1HehY0HaRi1wU/D3mnYwPfOHNw1hpmMR0S0re9FOUnFKBxYviF1Y3BTHZqv3mctcEl3v4aGpoEZZ6hG2gZuieIQNHwrgXF8jpMNQ7gnD0cWUB6eHvJb4lR1yrRgMdtEmmq6S6C2dw75f84xGqv7G9EmlccSh6G7xxU/zicBv//3VD6bRMNEpM4/6PPVwo0xoW3UUnyoZ5hTisdQ3tatdUifiCanumMedZNVyErmT37XP8SXSjDN1kU7H8KYciGyRau6p3s8jPqqQPbzhybezs209SLjl9dNJYV183tM1dVjDYHCl0pQ3PPs3cYzjLWUW4AmuLUluPufOKHLdv49g0/u/hJHebILopomxg94P+6DNB4byeKPgl4LeCzbdJA94KL9Z2oidyYEJBdLZE8qI9yd/Adh3Mnp1V5QQHcoSc+hY/OLomKSfZUpzaPnH9mS5MPXn4Lj23M0JXAZ5+qgvcrNEIeweYWMYrSlxH2UlSmMsJRtHeKlgms72tFB7YRoiwhR2h14oqStCmkpEdUtXmr9fOKVLTN8EWXe3gh4H7AaTD6g6ARdJRbNN6NI9Y0mbgqoRW0Zw1idfAZ8tprLlHtpExbo5z7H7uX8NIN2zp0Tg5Cx9/CjJc8z/jz/3ysl/3zkbnZqBnXbUa3MLMzlPCpLO6jAo= 
+    secure: XAGnQDpkdmnAa/vydZxGKVZ4oCQRUYgtruyntfV4O8jB3nE575gaz0S1V0FH0js0P17Tq183rtDGxWcmv5ZZmPDsZP2Hw9pY++ueShereNyzKRiVZpYpRKr9/oFu+I+Od6euhSELgLc+XJhQILbH2fs3CEOVII/DkKpbdaFeh/cVmcqB/TBb9gvjwKvWuaUE+Ans6oCgIXJ/7RUJDSpW8miTJ8QGE01WHINpuVut1c+e1XOgAQ+R9NwfWENbnyZXWe7EI9rGg54HYl8LtKD91whw2fO4oD4L81lSBLUeil1CjB58OLSuNYx5fOZQlNyQdpIG4Kac3hrBP41OgijkbjUBmP5415mAFW1EmQ+y5r4Je7hnA1iU+dD79srkVrWPJoetdmcS7GM6d6s73D/gNOM7GXadRZQoKZwe4Ap1XVWLO3ecFehWVLuYvLd9JFNPSbO4q+jsel3pANC0yAuET5GqQkRLnenehZXy4RuftuFQjjQA+kerksDirG4gtOXlKLxRgNxoRpA6yxnEWnz8uGniCSZLARS8uozGX9/LiFyepZ4TN37BACLfGRx/G/UWHdrnk6JZdKAJODGZbsb5WFd0LMH1iEUyBCbN195UhKYX4o8H/OOzQeLFcWLFwV0h2p/5y1Q5LewGlq63JHh5GLBabm0rlEo1TUn5L5FwiGw=
   on:
     tags: true
     repo: paoloserra/crystalball
