@@ -191,7 +191,7 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[], point_only=False,
         print('Selecting up to {} brightest sources'.format(num))
     
     # print if small subset
-    if num < 100 or include_regions:
+    if (num is not None and num < 100) or include_regions:
         for i, (srctype, flux) in enumerate(sorted(zip(wsclean_comps['I'], wsclean_comps['Type']), reverse=True)):
             print('{}: {} {} Jy'.format(i, srctype, flux))
 
