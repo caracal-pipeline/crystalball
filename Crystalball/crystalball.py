@@ -10,7 +10,8 @@ import argparse
 from dask.diagnostics import ProgressBar
 import numpy as np
 import sys
-
+import psutil
+from Crystalball.budget import get_budget
 
 try:
     from astropy.coordinates import Angle, SkyCoord
@@ -58,7 +59,7 @@ def create_parser():
     p.add_argument("-sp", "--spectra", action="store_true",
                    help="Optional. Model sources as non-flat spectra. The spectral "
                         "coefficients and reference frequency must be present in the sky model.")
-    p.add_argument("-w", "--within", type=str, 
+    p.add_argument("-w", "--within", type=str,
                    help="Optional. Give JS9 region file. Only sources within those regions will be "
                         "included.")
     p.add_argument("-po", "--points-only", action="store_true",
@@ -67,7 +68,6 @@ def create_parser():
                    help="Select only N brightest sources.")
     p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
                    help="Explicitly set the number of worker threads.")
-                        
 
     return p
 
@@ -150,16 +150,16 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[], point_only=False,
     if np.unique(wsclean_comps['LogarithmicSI']).shape[0]>1:
         print('Mixed log and ordinary polynomial spectral coefficients in {0:s}. Cannot deal with that. Aborting.'.format(wsclean_comp_list))
         sys.exit()
-        
+
     # create a sorting by descending flux
     sort_tuples = sorted([(flux, i) for i, flux in enumerate(wsclean_comps['I'])], reverse=True)
     sort_index = [i for flux, i in sort_tuples]
-    
+
     # re-sort all entries using this
     wsclean_comps = { key: value[sort_index] for key, value in wsclean_comps.items() }
-    
+
     print('{} contains {} components'.format(wsclean_comp_list, len(wsclean_comps['Type'])))
-    
+
     # make mask of sources to include
     include = np.ones_like(wsclean_comps['Type'], bool)
 
@@ -181,22 +181,21 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[], point_only=False,
     if point_only:
         include &= (wsclean_comps['Type'] == 'POINT')
         print('{} of which are point sources'.format(include.sum()))
-    
+
     # apply filters to component list
     wsclean_comps = { key: value[include] for key, value in wsclean_comps.items() }
-    
+
     # select limited number if asked
     if num is not None:
         wsclean_comps = { key: value[:num] for key, value in wsclean_comps.items() }
         print('Selecting up to {} brightest sources'.format(num))
-    
+
     # print if small subset
     if (num is not None and num < 100) or include_regions:
         for i, (srctype, flux) in enumerate(sorted(zip(wsclean_comps['I'], wsclean_comps['Type']), reverse=True)):
             print('{}: {} {} Jy'.format(i, srctype, flux))
 
     print('Total flux of {} selected components is {} Jy'.format(len(wsclean_comps['I']), wsclean_comps['I'].sum()))
-    
 
     return wsclean_comps['Type'],\
         np.concatenate((wsclean_comps['Ra'][:,None],wsclean_comps['Dec'][:,None]),axis=1),\
@@ -229,6 +228,7 @@ def predict(args):
 
     # check output column
     ms = casacore.tables.table(args.ms, readonly=False)
+    ms_rows = ms.nrows()
     if args.output_column not in ms.colnames():
         print('inserting new column {}'.format(args.output_column))
         desc = ms.getcoldesc("DATA")
@@ -238,6 +238,9 @@ def predict(args):
         dminfo["NAME"] =  "{}-{}".format(dminfo["NAME"], args.output_column)
         ms.addcols(desc, dminfo)
     ms.close()
+
+    # sort out resources
+    budget = get_budget(comp_type.shape[0],ms_rows,args)
 
     # OR set source data manually
     #radec = np.pi/180*np.array([
@@ -377,4 +380,3 @@ def predict(args):
     else:
         with ProgressBar():
             dask.compute(writes)
-
