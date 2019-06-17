@@ -10,7 +10,6 @@ import argparse
 from dask.diagnostics import ProgressBar
 import numpy as np
 import sys
-import psutil
 from Crystalball.budget import get_budget
 
 try:
