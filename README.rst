@@ -26,6 +26,8 @@ Pip install codex-africanus and a few other dependencies
   pip install xarray
 
   pip install xarray-ms
+  
+  pip install psutil
 
 Pip install crystalball
 
