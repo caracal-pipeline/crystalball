@@ -16,6 +16,42 @@ log = logging.getLogger(__name__)
 
 def import_from_wsclean(wsclean_comp_list, include_regions=[],
                         point_only=False, num=None):
+    """
+    Imports source data from wsclean
+
+    Parameters
+    ----------
+    wsclean_comp_list : str
+        wsclean component list file.
+    include_regions : List[:class:`regions.CircleSkyRegion`]
+        List of valid region's. Only sources within these regions
+        will be loaded.
+        Defaults to ``[]`` in which case, all sources are loaded.
+    point_only : bool, optional
+        Only include point sources. Defaults to False
+    num :  integer, optional
+        Number of sources to include.
+        If ``None`` all sources are returned.
+
+    Returns
+    -------
+    source_type : :class:`numpy.ndarray`
+        Source types of shape :code:`(source,)`
+    radec : :class:`numpy.ndarray`
+        Source radec coordinates of shape :code:`(source, 2)`.
+    stokes : :class:`numpy.ndarray`
+        Source stokes paramters of shape :code:`(source, 4)`.
+    spectral_index : :class:`numpy.ndarray`
+        Spectral index of shape :code:`(source, spi)`
+    ref_freq : :class:`numpy.ndarray`
+        Reference frequency of shape :code:`(source,)`
+    log_si : bool
+        Boolean indicated whether to use the logarithmic spectral index.
+    gauss_shape : :class:`numpy.ndarray`
+        Gaussian shape parameters of shape :code:`(source, 3)`.
+        The three components are MajorAxis, MinorAxis and Orientation,
+        respectively.
+    """
 
     wsclean_comps = {column: np.asarray(values)
                      for column, values
