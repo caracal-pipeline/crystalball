@@ -44,12 +44,12 @@ def create_parser():
                         "Default is 'sky-model.txt'")
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
                    help="Output visibility column. Default is '%(default)s'")
-    p.add_argument("-rc", "--row-chunks", type=int, default=10000,
+    p.add_argument("-rc", "--row-chunks", type=int, default=0,
                    help="Number of rows of input .MS that are processed in a single chunk. "
-                        "Default is 10000.")
-    p.add_argument("-mc", "--model-chunks", type=int, default=10,
+                        "If 0 it will be set automatically. Default is 0.")
+    p.add_argument("-mc", "--model-chunks", type=int, default=0,
                    help="Number of sky model components that are processed in a single chunk. "
-                        "Default is 10.")
+                        "If 0 it wil be set automatically. Default is 0.")
     p.add_argument("-iuvw", "--invert-uvw", action="store_true",
                    help="Optional. Invert UVW coordinates. Useful if we want "
                         "compare our visibilities against MeqTrees.")
@@ -65,6 +65,8 @@ def create_parser():
                    help="Select only N brightest sources.")
     p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
                    help="Explicitly set the number of worker threads.")
+    p.add_argument("-mf", "--memory-fraction", type=float, default=0.5,
+                   help="Fraction of system RAM that can be used. Default in 0.5.")
 
     return p
 
@@ -169,10 +171,19 @@ def predict(args):
                                            num=args.num_sources or None)
 
     # Add output column if it isn't present
-    ms_rows = ms_preprocess(args)
+    ms_rows,ms_datatype = ms_preprocess(args)
+
+    # Get the support tables
+    tables = support_tables(args, ["FIELD", "DATA_DESCRIPTION",
+                                   "SPECTRAL_WINDOW", "POLARIZATION"])
+
+    field_ds = tables["FIELD"]
+    ddid_ds = tables["DATA_DESCRIPTION"]
+    spw_ds = tables["SPECTRAL_WINDOW"]
+    pol_ds = tables["POLARIZATION"]
 
     # sort out resources
-    budget = get_budget(comp_type.shape[0], ms_rows, args)
+    args.row_chunks,args.model_chunks = get_budget(comp_type.shape[0],ms_rows,max([ss.NUM_CHAN.data for ss in spw_ds]),max([ss.NUM_CORR.data for ss in pol_ds]),ms_datatype,args)
 
     radec = da.from_array(radec, chunks=(args.model_chunks, 2))
     stokes = da.from_array(stokes, chunks=(args.model_chunks, 4))
@@ -188,15 +199,6 @@ def predict(args):
         spec_chunks = (args.model_chunks, spec_coeff.shape[1])
         spec_coeff = da.from_array(spec_coeff, chunks=spec_chunks)
         ref_freq = da.from_array(ref_freq, chunks=(args.model_chunks,))
-
-    # Get the support tables
-    tables = support_tables(args, ["FIELD", "DATA_DESCRIPTION",
-                                   "SPECTRAL_WINDOW", "POLARIZATION"])
-
-    field_ds = tables["FIELD"]
-    ddid_ds = tables["DATA_DESCRIPTION"]
-    spw_ds = tables["SPECTRAL_WINDOW"]
-    pol_ds = tables["POLARIZATION"]
 
     # List of write operations
     writes = []
