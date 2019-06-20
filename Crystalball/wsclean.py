@@ -17,7 +17,10 @@ log = logging.getLogger(__name__)
 def import_from_wsclean(wsclean_comp_list, include_regions=[],
                         point_only=False, num=None):
     """
-    Imports source data from wsclean
+    Imports sources from wsclean, sorted from brightest to faintest.
+    If ``include_regions`` is specified only those sources within
+    are returned. Similarly if ``num`` is specified, ``num`` brightest
+    sources are returned.
 
     Parameters
     ----------
@@ -62,7 +65,7 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
                          "coefficients in '%s'" % wsclean_comp_list)
 
     # Sort components by descending flux
-    sort_index = np.argsort(wsclean_comps['I'])[::-1]
+    sort_index = np.ascontiguousarray(np.argsort(wsclean_comps['I'])[::-1])
 
     # re-sort all entries using this
     wsclean_comps = {key: value[sort_index] for key, value
