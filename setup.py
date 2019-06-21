@@ -10,7 +10,7 @@ requirements = [
 ]
 
 PACKAGE_NAME = 'crystalball'
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 setup(name=PACKAGE_NAME,
       version=__version__,
