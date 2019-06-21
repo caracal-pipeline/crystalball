@@ -4,7 +4,9 @@ import sys
 
 def get_budget(nr_sources,nr_rows,nr_chans,nr_corrs,data_type,cb_args,fudge_factor=2.,row2source_ratio=100):
     systmem=np.float(psutil.virtual_memory()[0])
-    nrthreads=psutil.cpu_count()
+    if not cb_args.num_workers: nrthreads=psutil.cpu_count()
+    else: nrthreads=cb_args.num_workers
+
     print('-------------------------------------------')
     print('system RAM = {0:.2f} GB'.format(systmem/1024**3))
     print('nr of logical CPUs = {0:d}'.format(nrthreads))
