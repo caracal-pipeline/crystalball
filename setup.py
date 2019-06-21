@@ -6,7 +6,8 @@ from distutils.core import setup
 requirements = [
     "codex-africanus[complete] >= 0.1.8",
     "xarray-ms >= 0.1.8",
-    "regions"
+    "regions",
+    "psutil"
 ]
 
 PACKAGE_NAME = 'crystalball'
