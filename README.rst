@@ -1,8 +1,8 @@
-# Applicability
+**# Applicability**
 
 Currently supports prediction from a WSClean list of delta and Gaussian components with (log-) polynomial spectral shape (https://sourceforge.net/p/wsclean/wiki/ComponentList) into the MODEL_DATA column of a measurement set.
 
-# Installation in a virtual environment
+**# Installation in a virtual environment**
 
 Get crystalball and the required codex-africanus (by Simon Perkins)
 
@@ -33,7 +33,7 @@ Pip install crystalball
 
   pip install <path to crystalball>
 
-# Run crystalball
+**# Run crystalball**
 
 Activate the virtual environment where you installed codex-africanus, xarray and xarray-ms (see above)
 
