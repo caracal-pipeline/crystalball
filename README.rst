@@ -1,7 +1,7 @@
 Applicability
 =============
 
-Currently supports prediction from a WSClean list of delta and Gaussian components with (log-) polynomial spectral shape (https://sourceforge.net/p/wsclean/wiki/ComponentList) into the MODEL_DATA column of a measurement set.
+Crystalball currently supports prediction from a WSClean list of delta and Gaussian components with (log-) polynomial spectral shape (https://sourceforge.net/p/wsclean/wiki/ComponentList) into the MODEL_DATA column of a measurement set. This is done largely based on code available in the https://github.com/ska-sa/codex-africanus library.
 
 Installation in a virtual environment
 =====================================
