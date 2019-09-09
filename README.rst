@@ -44,4 +44,4 @@ Activate the virtual environment where you installed codex-africanus, xarray and
 
 Run crystalball
 
-``crystalball <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-iuvw] [-sp]``
+``crystalball <file.ms> [-h] [-sm SKY_MODEL] [-rc ROW_CHUNKS] [-mc MODEL_CHUNKS] [-mf MEMORY_FRACTION] [-iuvw] [-sp] [-w REGION_FILE] [-po] [-ns NUM_BRIGHTEST_SOURCES] [-j NUM_WORKERS] [-o OUTPUT_COLUMN]``
