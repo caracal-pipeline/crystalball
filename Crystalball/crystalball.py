@@ -50,9 +50,13 @@ def create_parser():
     p.add_argument("-mc", "--model-chunks", type=int, default=0,
                    help="Number of sky model components that are processed in a single chunk. "
                         "If 0 it wil be set automatically. Default is 0.")
-    p.add_argument("-iuvw", "--invert-uvw", action="store_true",
-                   help="Optional. Invert UVW coordinates. Useful if we want "
-                        "compare our visibilities against MeqTrees.")
+    p.add_argument("--exp-sign-convention", choices=['casa', 'thompson'],
+                   default='casa',
+                   help="Sign convention to use for the complex exponential. "
+                        "'casa' specifies the e^(2.pi.I) convention while "
+                        "'thompson' specifies the e^(-2.pi.I) convention in "
+                        "the white book and Fourier analysis literature. "
+                        "Defaults to '%(default)s'")
     p.add_argument("-sp", "--spectra", action="store_true",
                    help="Optional. Model sources as non-flat spectra. The spectral "
                         "coefficients and reference frequency must be present in the sky model.")
@@ -221,7 +225,13 @@ def predict(args):
         corrs = pol.NUM_CORR.values
 
         lm = radec_to_lm(radec, field.PHASE_DIR.data)
-        uvw = -xds.UVW.data if args.invert_uvw else xds.UVW.data
+
+        if args.exp_sign_convention == 'casa':
+            uvw = -xds.UVW.data
+        elif args.exp_sign_convention == 'thompson':
+            uvw = xds.UVW.data
+        else:
+            raise ValueError("Invalid sign convention '%s'" % args.sign)
 
         if args.spectra:
             # flux density at reference frequency ...
