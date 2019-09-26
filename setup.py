@@ -22,6 +22,7 @@ setup(name=PACKAGE_NAME,
       packages=["Crystalball"],
       install_requires=requirements,
       include_package_data=True,
+      python_requires=">=3.5",
       scripts=["bin/" + i for i in os.listdir("bin")],
       license=["GNU GPL v2"],
       classifiers=[
