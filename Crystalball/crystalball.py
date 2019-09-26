@@ -319,6 +319,13 @@ def _predict(args):
         # Add to the list of writes
         writes.append(write)
 
-    # Submit all graph computations in parallel
-    with ProgressBar():
+    with ExitStack() as stack:
+        if sys.stdout.isatty():
+            # Default progress bar in user terminal
+            stack.enter_context(ProgressBar())
+        else:
+            # Log progress every 5 minutes
+            stack.enter_context(ProgressBar(minimum=5*60, dt=5*60))
+
+        # Submit all graph computations in parallel
         dask.compute(writes)
