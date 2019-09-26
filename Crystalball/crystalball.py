@@ -325,7 +325,7 @@ def _predict(args):
             stack.enter_context(ProgressBar())
         else:
             # Log progress every 5 minutes
-            stack.enter_context(ProgressBar(minimum=5*60, dt=5*60))
+            stack.enter_context(ProgressBar(minimum=2*60, dt=2*60))
 
         # Submit all graph computations in parallel
         dask.compute(writes)
