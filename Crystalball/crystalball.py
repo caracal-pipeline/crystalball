@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+from contextlib import ExitStack
 
 from dask.diagnostics import ProgressBar
 import numpy as np
@@ -148,10 +149,24 @@ def einsum_schema(pol, dospec):
         raise ValueError("corrs %d not in (1, 2, 4)" % corrs)
 
 
+def predict():
+    # Parse application args
+    args = create_parser().parse_args([a for a in sys.argv[1:]])
+
+    with ExitStack() as stack:
+        # Set up dask ThreadPool prior to any application dask calls
+        if args.num_workers:
+            stack.enter_context(dask.config.set(num_workers=args.num_workers))
+
+        # Run application script
+        return _predict(args)
+
+
 @requires_optional("dask.array", "xarray", "xarrayms", opt_import_error)
-def predict(args):
+def _predict(args):
     # get inclusion regions
     include_regions = []
+
     if args.within:
         from regions import read_ds9
         import tempfile
@@ -172,7 +187,7 @@ def predict(args):
                                            num=args.num_sources or None)
 
     # Add output column if it isn't present
-    ms_rows,ms_datatype = ms_preprocess(args)
+    ms_rows, ms_datatype = ms_preprocess(args)
 
     # Get the support tables
     tables = support_tables(args, ["FIELD", "DATA_DESCRIPTION",
@@ -183,8 +198,15 @@ def predict(args):
     spw_ds = tables["SPECTRAL_WINDOW"]
     pol_ds = tables["POLARIZATION"]
 
-    # sort out resources
-    args.row_chunks,args.model_chunks = get_budget(comp_type.shape[0],ms_rows,max([ss.NUM_CHAN.data for ss in spw_ds]),max([ss.NUM_CORR.data for ss in pol_ds]),ms_datatype,args)
+    max_num_chan = max([ss.NUM_CHAN.data for ss in spw_ds])
+    max_num_corr = max([ss.NUM_CORR.data for ss in pol_ds])
+
+    # Perform resource budgeting
+    args.row_chunks, args.model_chunks = get_budget(comp_type.shape[0],
+                                                    ms_rows,
+                                                    max_num_chan,
+                                                    max_num_corr,
+                                                    ms_datatype, args)
 
     radec = da.from_array(radec, chunks=(args.model_chunks, 2))
     stokes = da.from_array(stokes, chunks=(args.model_chunks, 4))
@@ -298,9 +320,5 @@ def predict(args):
         writes.append(write)
 
     # Submit all graph computations in parallel
-    if args.num_workers:
-        with ProgressBar(), dask.config.set(num_workers=args.num_workers):
-            dask.compute(writes)
-    else:
-        with ProgressBar():
-            dask.compute(writes)
+    with ProgressBar():
+        dask.compute(writes)
