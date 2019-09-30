@@ -13,7 +13,7 @@ try:
     import dask
     import dask.array as da
     import xarray as xr
-    from xarrayms import xds_from_ms, xds_from_table, xds_to_table
+    from daskms import xds_from_ms, xds_from_table, xds_to_table
 except ImportError as e:
     opt_import_error = e
 else:
@@ -106,8 +106,8 @@ def corr_schema(pol):
         `[[9, 10], [11, 12]]` for example
     """
 
-    corrs = pol.NUM_CORR.values
-    corr_types = pol.CORR_TYPE.values
+    corrs = pol.NUM_CORR.data[0]
+    corr_types = pol.CORR_TYPE.data[0]
 
     if corrs == 4:
         return [[corr_types[0], corr_types[1]],
@@ -162,7 +162,7 @@ def predict():
         return _predict(args)
 
 
-@requires_optional("dask.array", "xarray", "xarrayms", opt_import_error)
+@requires_optional("dask.array", "xarray", "daskms", opt_import_error)
 def _predict(args):
     # get inclusion regions
     include_regions = []
@@ -198,8 +198,8 @@ def _predict(args):
     spw_ds = tables["SPECTRAL_WINDOW"]
     pol_ds = tables["POLARIZATION"]
 
-    max_num_chan = max([ss.NUM_CHAN.data for ss in spw_ds])
-    max_num_corr = max([ss.NUM_CORR.data for ss in pol_ds])
+    max_num_chan = max([ss.NUM_CHAN.data[0] for ss in spw_ds])
+    max_num_corr = max([ss.NUM_CORR.data[0] for ss in pol_ds])
 
     # Perform resource budgeting
     args.row_chunks, args.model_chunks = get_budget(comp_type.shape[0],
@@ -236,13 +236,13 @@ def _predict(args):
         # with this data descriptor id
         field = field_ds[xds.attrs['FIELD_ID']]
         ddid = ddid_ds[xds.attrs['DATA_DESC_ID']]
-        spw = spw_ds[ddid.SPECTRAL_WINDOW_ID.values]
-        pol = pol_ds[ddid.POLARIZATION_ID.values]
-        frequency = spw.CHAN_FREQ.data
+        spw = spw_ds[ddid.SPECTRAL_WINDOW_ID.data[0]]
+        pol = pol_ds[ddid.POLARIZATION_ID.data[0]]
+        frequency = spw.CHAN_FREQ.data[0]
 
         corrs = pol.NUM_CORR.values
 
-        lm = radec_to_lm(radec, field.PHASE_DIR.data)
+        lm = radec_to_lm(radec, field.PHASE_DIR.data[0][0])
 
         if args.exp_sign_convention == 'casa':
             uvw = -xds.UVW.data
