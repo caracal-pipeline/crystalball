@@ -12,7 +12,6 @@ import sys
 try:
     import dask
     import dask.array as da
-    import xarray as xr
     from daskms import xds_from_ms, xds_from_table, xds_to_table
 except ImportError as e:
     opt_import_error = e
@@ -162,7 +161,7 @@ def predict():
         return _predict(args)
 
 
-@requires_optional("dask.array", "xarray", "daskms", opt_import_error)
+@requires_optional("dask.array", "daskms", opt_import_error)
 def _predict(args):
     # get inclusion regions
     include_regions = []
@@ -312,8 +311,7 @@ def _predict(args):
             vis = vis.reshape(vis.shape[:2] + (4,))
 
         # Assign visibilities to MODEL_DATA array on the dataset
-        model_data = xr.DataArray(vis, dims=["row", "chan", "corr"])
-        xds = xds.assign(**{args.output_column: model_data})
+        xds = xds.assign(**{args.output_column: (("row", "chan", "corr"), vis)})
         # Create a write to the table
         write = xds_to_table(xds, args.ms, [args.output_column])
         # Add to the list of writes
