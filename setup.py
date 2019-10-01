@@ -4,8 +4,8 @@ import os
 from distutils.core import setup
 
 requirements = [
-    "codex-africanus[complete] >= 0.1.8",
-    "xarray-ms >= 0.1.8",
+    "codex-africanus[dask] >= 0.2.0",
+    "dask-ms >= 0.2.0",
     "regions",
     "psutil"
 ]
@@ -18,11 +18,14 @@ setup(name=PACKAGE_NAME,
       description="Predicts visibilities from a parameterised sky model",
       author="Paolo Serra",
       author_email="paolo80serra@gmail.com",
+      entry_points={
+        'console_scripts': ['crystalball=Crystalball.crystalball:predict'],
+      },
       url="https://github.com/paoloserra/crystalball",
       packages=["Crystalball"],
       install_requires=requirements,
       include_package_data=True,
-      scripts=["bin/" + i for i in os.listdir("bin")],
+      python_requires=">=3.5",
       license=["GNU GPL v2"],
       classifiers=[
         "Development Status :: 3 - Alpha",

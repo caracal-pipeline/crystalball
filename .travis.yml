@@ -1,7 +1,7 @@
 language: python
 matrix:
   include:
-  - env: TARGET=py2
+  - env: TARGET=py3
   allow_failures:
   - env: TARGET=mypy
 sudo: required

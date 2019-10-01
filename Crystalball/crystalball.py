@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import argparse
+from contextlib import ExitStack
 
 from dask.diagnostics import ProgressBar
 import numpy as np
@@ -15,8 +12,7 @@ import sys
 try:
     import dask
     import dask.array as da
-    import xarray as xr
-    from xarrayms import xds_from_ms, xds_from_table, xds_to_table
+    from daskms import xds_from_ms, xds_from_table, xds_to_table
 except ImportError as e:
     opt_import_error = e
 else:
@@ -109,8 +105,8 @@ def corr_schema(pol):
         `[[9, 10], [11, 12]]` for example
     """
 
-    corrs = pol.NUM_CORR.values
-    corr_types = pol.CORR_TYPE.values
+    corrs = pol.NUM_CORR.data[0]
+    corr_types = pol.CORR_TYPE.data[0]
 
     if corrs == 4:
         return [[corr_types[0], corr_types[1]],
@@ -152,10 +148,24 @@ def einsum_schema(pol, dospec):
         raise ValueError("corrs %d not in (1, 2, 4)" % corrs)
 
 
-@requires_optional("dask.array", "xarray", "xarrayms", opt_import_error)
-def predict(args):
+def predict():
+    # Parse application args
+    args = create_parser().parse_args([a for a in sys.argv[1:]])
+
+    with ExitStack() as stack:
+        # Set up dask ThreadPool prior to any application dask calls
+        if args.num_workers:
+            stack.enter_context(dask.config.set(num_workers=args.num_workers))
+
+        # Run application script
+        return _predict(args)
+
+
+@requires_optional("dask.array", "daskms", opt_import_error)
+def _predict(args):
     # get inclusion regions
     include_regions = []
+
     if args.within:
         from regions import read_ds9
         import tempfile
@@ -176,7 +186,7 @@ def predict(args):
                                            num=args.num_sources or None)
 
     # Add output column if it isn't present
-    ms_rows,ms_datatype = ms_preprocess(args)
+    ms_rows, ms_datatype = ms_preprocess(args)
 
     # Get the support tables
     tables = support_tables(args, ["FIELD", "DATA_DESCRIPTION",
@@ -187,8 +197,15 @@ def predict(args):
     spw_ds = tables["SPECTRAL_WINDOW"]
     pol_ds = tables["POLARIZATION"]
 
-    # sort out resources
-    args.row_chunks,args.model_chunks = get_budget(comp_type.shape[0],ms_rows,max([ss.NUM_CHAN.data for ss in spw_ds]),max([ss.NUM_CORR.data for ss in pol_ds]),ms_datatype,args)
+    max_num_chan = max([ss.NUM_CHAN.data[0] for ss in spw_ds])
+    max_num_corr = max([ss.NUM_CORR.data[0] for ss in pol_ds])
+
+    # Perform resource budgeting
+    args.row_chunks, args.model_chunks = get_budget(comp_type.shape[0],
+                                                    ms_rows,
+                                                    max_num_chan,
+                                                    max_num_corr,
+                                                    ms_datatype, args)
 
     radec = da.from_array(radec, chunks=(args.model_chunks, 2))
     stokes = da.from_array(stokes, chunks=(args.model_chunks, 4))
@@ -218,13 +235,13 @@ def predict(args):
         # with this data descriptor id
         field = field_ds[xds.attrs['FIELD_ID']]
         ddid = ddid_ds[xds.attrs['DATA_DESC_ID']]
-        spw = spw_ds[ddid.SPECTRAL_WINDOW_ID.values]
-        pol = pol_ds[ddid.POLARIZATION_ID.values]
-        frequency = spw.CHAN_FREQ.data
+        spw = spw_ds[ddid.SPECTRAL_WINDOW_ID.data[0]]
+        pol = pol_ds[ddid.POLARIZATION_ID.data[0]]
+        frequency = spw.CHAN_FREQ.data[0]
 
         corrs = pol.NUM_CORR.values
 
-        lm = radec_to_lm(radec, field.PHASE_DIR.data)
+        lm = radec_to_lm(radec, field.PHASE_DIR.data[0][0])
 
         if args.exp_sign_convention == 'casa':
             uvw = -xds.UVW.data
@@ -294,17 +311,19 @@ def predict(args):
             vis = vis.reshape(vis.shape[:2] + (4,))
 
         # Assign visibilities to MODEL_DATA array on the dataset
-        model_data = xr.DataArray(vis, dims=["row", "chan", "corr"])
-        xds = xds.assign(**{args.output_column: model_data})
+        xds = xds.assign(**{args.output_column: (("row", "chan", "corr"), vis)})
         # Create a write to the table
         write = xds_to_table(xds, args.ms, [args.output_column])
         # Add to the list of writes
         writes.append(write)
 
-    # Submit all graph computations in parallel
-    if args.num_workers:
-        with ProgressBar(), dask.config.set(num_workers=args.num_workers):
-            dask.compute(writes)
-    else:
-        with ProgressBar():
-            dask.compute(writes)
+    with ExitStack() as stack:
+        if sys.stdout.isatty():
+            # Default progress bar in user terminal
+            stack.enter_context(ProgressBar())
+        else:
+            # Log progress every 5 minutes
+            stack.enter_context(ProgressBar(minimum=2*60, dt=5))
+
+        # Submit all graph computations in parallel
+        dask.compute(writes)
