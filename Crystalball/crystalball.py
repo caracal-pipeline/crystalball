@@ -171,7 +171,7 @@ def _predict(args):
         import tempfile
         # kludge because regions cries over "FK5", wants lowercase
         with tempfile.NamedTemporaryFile() as tmpfile, open(args.within) as regfile:
-            tmpfile.write(regfile.read().lower())
+            tmpfile.write(regfile.read().lower().encode())
             tmpfile.flush()
             include_regions = read_ds9(tmpfile.name)
             print("read {} inclusion region(s) from {}".format(len(include_regions), args.within))
