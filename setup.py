@@ -9,7 +9,7 @@ requirements = [
     "psutil"
 ]
 
-extra_requires = {
+extras_require = {
   'testing': ['pytest', 'pytest-flake8']
 }
 
@@ -24,7 +24,7 @@ setup(name=PACKAGE_NAME,
       entry_points={
         'console_scripts': ['crystalball=Crystalball.crystalball:predict'],
       },
-      extra_requires=extra_requires,
+      extras_require=extras_require,
       url="https://github.com/paoloserra/crystalball",
       packages=["Crystalball"],
       install_requires=requirements,
