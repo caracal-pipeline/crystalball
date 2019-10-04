@@ -6,6 +6,12 @@ Crystalball currently supports prediction from a WSClean list of delta and Gauss
 Installation in a virtual environment
 =====================================
 
+Crystalball depends on python-casacore which builds from source.
+The dependencies mentioned at the following links must be installed
+in order for the build to succeed:
+
+- https://github.com/casacore/casacore#building-from-source
+- https://github.com/casacore/python-casacore#from-source
 
 Create and activate a virtual environment
 
