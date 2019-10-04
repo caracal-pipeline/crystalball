@@ -3,7 +3,7 @@
 import logging
 
 from africanus.model.wsclean.file_model import load
-from astropy.coordinates import Angle, SkyCoord
+from astropy.coordinates import SkyCoord
 import numpy as np
 
 
@@ -85,7 +85,8 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
 
         coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'],
                          unit="rad", frame=include_regions[0].center.frame)
-        include = coord.separation(include_regions[0].center) <= include_regions[0].radius
+        include = coord.separation(
+            include_regions[0].center) <= include_regions[0].radius
 
         for reg in include_regions[1:]:
             include |= coord.separation(reg.center) <= reg.radius
