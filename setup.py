@@ -11,7 +11,7 @@ requirements = [
 ]
 
 extra_requires = {
-  'testing': ['pytest']
+  'testing': ['pytest', 'pytest-flake8']
 }
 
 PACKAGE_NAME = 'crystalball'
