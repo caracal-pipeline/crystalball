@@ -28,6 +28,7 @@ import casacore.tables
 
 from Crystalball.budget import get_budget
 from Crystalball.ms import ms_preprocess
+from Crystalball.region import load_regions
 from Crystalball.wsclean import import_from_wsclean
 
 
@@ -164,17 +165,7 @@ def predict():
 @requires_optional("dask.array", "daskms", opt_import_error)
 def _predict(args):
     # get inclusion regions
-    include_regions = []
-
-    if args.within:
-        from regions import read_ds9
-        import tempfile
-        # kludge because regions cries over "FK5", wants lowercase
-        with tempfile.NamedTemporaryFile() as tmpfile, open(args.within) as regfile:
-            tmpfile.write(regfile.read().lower().encode())
-            tmpfile.flush()
-            include_regions = read_ds9(tmpfile.name)
-            print("read {} inclusion region(s) from {}".format(len(include_regions), args.within))
+    include_regions = load_regions(args.within) if args.within else []
 
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList

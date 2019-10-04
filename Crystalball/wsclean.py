@@ -135,8 +135,10 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
                             wsclean_comps['Orientation']),
                            axis=-1)
 
+    log_si = wsclean_comps['LogarithmicSI'][0] if len(flux) > 0 else False
+
     return (wsclean_comps['Type'], radec, stokes,
             wsclean_comps['SpectralIndex'],
             wsclean_comps['ReferenceFrequency'],
-            wsclean_comps['LogarithmicSI'][0],
+            log_si,
             gauss_shape)
