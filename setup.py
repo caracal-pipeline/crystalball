@@ -10,6 +10,10 @@ requirements = [
     "psutil"
 ]
 
+extra_requires = {
+  'testing': ['pytest']
+}
+
 PACKAGE_NAME = 'crystalball'
 __version__ = '0.2.0'
 
@@ -21,6 +25,7 @@ setup(name=PACKAGE_NAME,
       entry_points={
         'console_scripts': ['crystalball=Crystalball.crystalball:predict'],
       },
+      extra_requires=extra_requires,
       url="https://github.com/paoloserra/crystalball",
       packages=["Crystalball"],
       install_requires=requirements,
