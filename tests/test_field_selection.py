@@ -1,7 +1,5 @@
-
 import dask.array as da
 import numpy as np
-import pytest
 
 from daskms import Dataset
 from Crystalball.filtering import valid_field_ids
