@@ -40,7 +40,10 @@ def create_parser():
                         "Default is 'sky-model.txt'")
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
                    help="Output visibility column. Default is '%(default)s'")
-    p.add_argument("-f", "--fields", type=str)
+    p.add_argument("-f", "--fields", type=str,
+                   help="Comma-separated list of Field names or ids "
+                        "which should be predicted. "
+                        "All fields are predicted by default.")
     p.add_argument("-rc", "--row-chunks", type=int, default=0,
                    help="Number of rows of input .MS that are processed in "
                         "a single chunk. If 0 it will be set automatically. "
