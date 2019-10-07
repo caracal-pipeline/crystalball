@@ -25,6 +25,7 @@ from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 
 from Crystalball.budget import get_budget
+from Crystalball.filtering import valid_field_ids, filter_datasets
 from Crystalball.ms import ms_preprocess
 from Crystalball.region import load_regions
 from Crystalball.wsclean import import_from_wsclean
@@ -39,6 +40,7 @@ def create_parser():
                         "Default is 'sky-model.txt'")
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
                    help="Output visibility column. Default is '%(default)s'")
+    p.add_argument("-f", "--fields", type=str)
     p.add_argument("-rc", "--row-chunks", type=int, default=0,
                    help="Number of rows of input .MS that are processed in "
                         "a single chunk. If 0 it will be set automatically. "
@@ -218,12 +220,15 @@ def _predict(args):
     # List of write operations
     writes = []
 
-    # Construct a graph for each DATA_DESC_ID
-    for xds in xds_from_ms(args.ms,
+    # Construct a graph for each FIELD and DATA DESCRIPTOR
+    datasets = xds_from_ms(args.ms,
                            columns=["UVW", "ANTENNA1", "ANTENNA2", "TIME"],
                            group_cols=["FIELD_ID", "DATA_DESC_ID"],
-                           chunks={"row": args.row_chunks}):
+                           chunks={"row": args.row_chunks})
 
+    select_fields = valid_field_ids(field_ds, args.fields)
+
+    for xds in filter_datasets(datasets, select_fields):
         # Extract frequencies from the spectral window associated
         # with this data descriptor id
         field = field_ds[xds.attrs['FIELD_ID']]
