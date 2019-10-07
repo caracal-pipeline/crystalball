@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os
 from distutils.core import setup
 
 requirements = [
@@ -9,6 +8,10 @@ requirements = [
     "regions",
     "psutil"
 ]
+
+extras_require = {
+  'testing': ['pytest', 'pytest-flake8']
+}
 
 PACKAGE_NAME = 'crystalball'
 __version__ = '0.2.0'
@@ -21,6 +24,7 @@ setup(name=PACKAGE_NAME,
       entry_points={
         'console_scripts': ['crystalball=Crystalball.crystalball:predict'],
       },
+      extras_require=extras_require,
       url="https://github.com/paoloserra/crystalball",
       packages=["Crystalball"],
       install_requires=requirements,

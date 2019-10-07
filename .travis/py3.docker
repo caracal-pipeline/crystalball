@@ -9,5 +9,5 @@ RUN docker-apt-install python3-pip \
     wcslib-dev
 ADD . /code
 WORKDIR /code
-RUN pip3 install .
-RUN python3 -c "import Crystalball.crystalball"
+RUN pip3 install .[testing]
+RUN py.test --flake8 -s -vvv .

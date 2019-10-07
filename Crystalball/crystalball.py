@@ -24,10 +24,9 @@ from africanus.model.coherency.dask import convert
 from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 
-import casacore.tables
-
 from Crystalball.budget import get_budget
 from Crystalball.ms import ms_preprocess
+from Crystalball.region import load_regions
 from Crystalball.wsclean import import_from_wsclean
 
 
@@ -41,11 +40,13 @@ def create_parser():
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
                    help="Output visibility column. Default is '%(default)s'")
     p.add_argument("-rc", "--row-chunks", type=int, default=0,
-                   help="Number of rows of input .MS that are processed in a single chunk. "
-                        "If 0 it will be set automatically. Default is 0.")
+                   help="Number of rows of input .MS that are processed in "
+                        "a single chunk. If 0 it will be set automatically. "
+                        "Default is 0.")
     p.add_argument("-mc", "--model-chunks", type=int, default=0,
-                   help="Number of sky model components that are processed in a single chunk. "
-                        "If 0 it wil be set automatically. Default is 0.")
+                   help="Number of sky model components that are processed in "
+                        "a single chunk. If 0 it wil be set automatically. "
+                        "Default is 0.")
     p.add_argument("--exp-sign-convention", choices=['casa', 'thompson'],
                    default='casa',
                    help="Sign convention to use for the complex exponential. "
@@ -54,11 +55,12 @@ def create_parser():
                         "the white book and Fourier analysis literature. "
                         "Defaults to '%(default)s'")
     p.add_argument("-sp", "--spectra", action="store_true",
-                   help="Optional. Model sources as non-flat spectra. The spectral "
-                        "coefficients and reference frequency must be present in the sky model.")
+                   help="Optional. Model sources as non-flat spectra. "
+                        "The spectral coefficients and reference frequency "
+                        "must be present in the sky model.")
     p.add_argument("-w", "--within", type=str,
-                   help="Optional. Give JS9 region file. Only sources within those regions will be "
-                        "included.")
+                   help="Optional. Give JS9 region file. Only sources within "
+                        "those regions will be included.")
     p.add_argument("-po", "--points-only", action="store_true",
                    help="Select only point-type sources.")
     p.add_argument("-ns", "--num-sources", type=int, default=0, metavar="N",
@@ -66,7 +68,8 @@ def create_parser():
     p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
                    help="Explicitly set the number of worker threads.")
     p.add_argument("-mf", "--memory-fraction", type=float, default=0.5,
-                   help="Fraction of system RAM that can be used. Used when setting automatically the "
+                   help="Fraction of system RAM that can be used. "
+                        "Used when setting automatically the "
                         "chunk size. Default in 0.5.")
 
     return p
@@ -164,17 +167,7 @@ def predict():
 @requires_optional("dask.array", "daskms", opt_import_error)
 def _predict(args):
     # get inclusion regions
-    include_regions = []
-
-    if args.within:
-        from regions import read_ds9
-        import tempfile
-        # kludge because regions cries over "FK5", wants lowercase
-        with tempfile.NamedTemporaryFile() as tmpfile, open(args.within) as regfile:
-            tmpfile.write(regfile.read().lower().encode())
-            tmpfile.flush()
-            include_regions = read_ds9(tmpfile.name)
-            print("read {} inclusion region(s) from {}".format(len(include_regions), args.within))
+    include_regions = load_regions(args.within) if args.within else []
 
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
@@ -253,50 +246,67 @@ def _predict(args):
         if args.spectra:
             # flux density at reference frequency ...
             # ... for logarithmic polynomial functions
-            if log_spec_ind: Is=da.log(stokes[:,0,None])*frequency[None,:]**0
+            if log_spec_ind:
+                Is = da.log(stokes[:, 0, None])*frequency[None, :]**0
             # ... or for ordinary polynomial functions
-            else: Is=stokes[:,0,None]*frequency[None,:]**0
+            else:
+                Is = stokes[:, 0, None]*frequency[None, :]**0
             # additional terms of SED ...
             for jj in range(spec_coeff.shape[1]):
                 # ... for logarithmic polynomial functions
-                if log_spec_ind: Is+=spec_coeff[:,jj,None]*da.log((frequency[None,:]/ref_freq[:,None])**(jj+1))
+                if log_spec_ind:
+                    Is += spec_coeff[:, jj, None] * \
+                        da.log((frequency[None, :]/ref_freq[:, None])**(jj+1))
                 # ... or for ordinary polynomial functions
-                else: Is+=spec_coeff[:,jj,None]*(frequency[None,:]/ref_freq[:,None]-1)**(jj+1)
-            if log_spec_ind: Is=da.exp(Is)
-            Qs=da.zeros_like(Is)
-            Us=da.zeros_like(Is)
-            Vs=da.zeros_like(Is)
-            spectrum=da.stack([Is,Qs,Us,Vs],axis=-1) # stack along new axis and make it the last axis of the new array
-            spectrum=spectrum.rechunk(spectrum.chunks[:2] + (spectrum.shape[2],))
+                else:
+                    Is += spec_coeff[:, jj, None] * \
+                        (frequency[None, :]/ref_freq[:, None]-1)**(jj+1)
+            if log_spec_ind:
+                Is = da.exp(Is)
+            Qs = da.zeros_like(Is)
+            Us = da.zeros_like(Is)
+            Vs = da.zeros_like(Is)
+            # stack along new axis and make it the last axis of the new array
+            spectrum = da.stack([Is, Qs, Us, Vs], axis=-1)
+            spectrum = spectrum.rechunk(
+                spectrum.chunks[:2] + (spectrum.shape[2],))
 
         print('-------------------------------------------')
         print('Nr sources        = {0:d}'.format(stokes.shape[0]))
         print('-------------------------------------------')
         print('stokes.shape      = {0:}'.format(stokes.shape))
         print('frequency.shape   = {0:}'.format(frequency.shape))
-        if args.spectra: print('Is.shape          = {0:}'.format(Is.shape))
-        if args.spectra: print('spectrum.shape    = {0:}'.format(spectrum.shape))
+        if args.spectra:
+            print('Is.shape          = {0:}'.format(Is.shape))
+        if args.spectra:
+            print('spectrum.shape    = {0:}'.format(spectrum.shape))
 
         # (source, row, frequency)
         phase = phase_delay(lm, uvw, frequency)
-        # If at least one Gaussian component is present in the component list then all
-        # sources are modelled as Gaussian components (Delta components have zero width)
-        if gaussian_components: phase *= gaussian(uvw, frequency, gaussian_shape)
+        # If at least one Gaussian component is present in the component
+        # list then all sources are modelled as Gaussian components
+        # (Delta components have zero width)
+        if gaussian_components:
+            phase *= gaussian(uvw, frequency, gaussian_shape)
         # (source, frequency, corr_products)
-        brightness = convert(spectrum if args.spectra else stokes, ["I", "Q", "U", "V"],
+        brightness = convert(spectrum if args.spectra else stokes,
+                             ["I", "Q", "U", "V"],
                              corr_schema(pol))
 
         print('brightness.shape  = {0:}'.format(brightness.shape))
         print('phase.shape       = {0:}'.format(phase.shape))
         print('-------------------------------------------')
-        print('Attempting phase-brightness einsum with "{0:s}"'.format(einsum_schema(pol,args.spectra)))
+        print('Attempting phase-brightness einsum with "{0:s}"'
+              .format(einsum_schema(pol, args.spectra)))
 
         # (source, row, frequency, corr_products)
-        jones = da.einsum(einsum_schema(pol,args.spectra), phase, brightness)
+        jones = da.einsum(einsum_schema(pol, args.spectra), phase, brightness)
         print('jones.shape       = {0:}'.format(jones.shape))
         print('-------------------------------------------')
-        if gaussian_components: print('Some Gaussian sources found')
-        else: print('All sources are Delta functions')
+        if gaussian_components:
+            print('Some Gaussian sources found')
+        else:
+            print('All sources are Delta functions')
         print('-------------------------------------------')
 
         # Identify time indices
@@ -311,7 +321,8 @@ def _predict(args):
             vis = vis.reshape(vis.shape[:2] + (4,))
 
         # Assign visibilities to MODEL_DATA array on the dataset
-        xds = xds.assign(**{args.output_column: (("row", "chan", "corr"), vis)})
+        xds = xds.assign(
+            **{args.output_column: (("row", "chan", "corr"), vis)})
         # Create a write to the table
         write = xds_to_table(xds, args.ms, [args.output_column])
         # Add to the list of writes
