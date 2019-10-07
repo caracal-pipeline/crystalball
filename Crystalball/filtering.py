@@ -29,8 +29,12 @@ def valid_field_ids(field_datasets, fields=None):
     elif not isinstance(fields, str):
         raise TypeError("fields must be None or str")
 
-    field_names = {str(ds.NAME.values): i for i, ds
-                   in enumerate(field_datasets)}
+    field_names = {}
+
+    for i, ds in enumerate(field_datasets):
+        names = ds.NAME.values
+        assert len(names) == 1, "Should have a single name per row"
+        field_names[str(names[0])] = i
 
     selected_fields = [f.strip() for f in fields.split(',')]
 
