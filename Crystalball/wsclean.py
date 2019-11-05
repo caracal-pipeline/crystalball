@@ -128,7 +128,7 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     flux = wsclean_comps['I']
     stokes = np.empty((flux.shape[0], 4), dtype=flux.dtype)
     stokes[:, 0] = flux
-    stokes[: 1:] = 0
+    stokes[:, 1:] = 0
 
     # Create gaussian shapes
     gauss_shape = np.stack((wsclean_comps['MajorAxis'],
