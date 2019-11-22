@@ -3,6 +3,7 @@
 
 import argparse
 from contextlib import ExitStack
+import gc
 
 from dask.diagnostics import ProgressBar
 import numpy as np
@@ -333,6 +334,20 @@ def _predict(args):
             **{args.output_column: (("row", "chan", "corr"), vis)})
         # Create a write to the table
         write = xds_to_table(xds, args.ms, [args.output_column])
+
+        def _force_gc(w):
+            """
+            Pass through function that garbage collects all
+            three generations after a chunk of visibilities
+            have been written
+            """
+            gc.collect(0)
+            gc.collect(1)
+            gc.collect(2)
+            return w
+
+        write = write.map_blocks(_force_gc, dtype=write.dtype)
+
         # Add to the list of writes
         writes.append(write)
 
