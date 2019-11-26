@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import argparse
 from contextlib import ExitStack
 import gc
 
-from dask.diagnostics import ProgressBar
+from distributed import LocalCluster, Client
+from distributed.diagnostics.progressbar import progress
 import numpy as np
 import sys
 
@@ -25,60 +25,12 @@ from africanus.model.coherency.dask import convert
 from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 
+from Crystalball.argparsing import create_parser
 from Crystalball.budget import get_budget
 from Crystalball.filtering import valid_field_ids, filter_datasets
 from Crystalball.ms import ms_preprocess
 from Crystalball.region import load_regions
 from Crystalball.wsclean import import_from_wsclean
-
-
-def create_parser():
-    p = argparse.ArgumentParser()
-    p.add_argument("ms",
-                   help="Input .MS file.")
-    p.add_argument("-sm", "--sky-model", default="sky-model.txt",
-                   help="Name of file containing the sky model. "
-                        "Default is 'sky-model.txt'")
-    p.add_argument("-o", "--output-column", default="MODEL_DATA",
-                   help="Output visibility column. Default is '%(default)s'")
-    p.add_argument("-f", "--fields", type=str,
-                   help="Comma-separated list of Field names or ids "
-                        "which should be predicted. "
-                        "All fields are predicted by default.")
-    p.add_argument("-rc", "--row-chunks", type=int, default=0,
-                   help="Number of rows of input .MS that are processed in "
-                        "a single chunk. If 0 it will be set automatically. "
-                        "Default is 0.")
-    p.add_argument("-mc", "--model-chunks", type=int, default=0,
-                   help="Number of sky model components that are processed in "
-                        "a single chunk. If 0 it wil be set automatically. "
-                        "Default is 0.")
-    p.add_argument("--exp-sign-convention", choices=['casa', 'thompson'],
-                   default='casa',
-                   help="Sign convention to use for the complex exponential. "
-                        "'casa' specifies the e^(2.pi.I) convention while "
-                        "'thompson' specifies the e^(-2.pi.I) convention in "
-                        "the white book and Fourier analysis literature. "
-                        "Defaults to '%(default)s'")
-    p.add_argument("-sp", "--spectra", action="store_true",
-                   help="Optional. Model sources as non-flat spectra. "
-                        "The spectral coefficients and reference frequency "
-                        "must be present in the sky model.")
-    p.add_argument("-w", "--within", type=str,
-                   help="Optional. Give JS9 region file. Only sources within "
-                        "those regions will be included.")
-    p.add_argument("-po", "--points-only", action="store_true",
-                   help="Select only point-type sources.")
-    p.add_argument("-ns", "--num-sources", type=int, default=0, metavar="N",
-                   help="Select only N brightest sources.")
-    p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
-                   help="Explicitly set the number of worker threads.")
-    p.add_argument("-mf", "--memory-fraction", type=float, default=0.5,
-                   help="Fraction of system RAM that can be used. "
-                        "Used when setting automatically the "
-                        "chunk size. Default in 0.5.")
-
-    return p
 
 
 def support_tables(args, tables):
@@ -162,9 +114,17 @@ def predict():
     args = create_parser().parse_args([a for a in sys.argv[1:]])
 
     with ExitStack() as stack:
-        # Set up dask ThreadPool prior to any application dask calls
-        if args.num_workers:
-            stack.enter_context(dask.config.set(num_workers=args.num_workers))
+        # Create a distributed LocalCluster
+        cluster = LocalCluster(processes=False,
+                               nanny=False,
+                               n_workers=args.num_workers,
+                               threads_per_worker=1,
+                               memory_limit=None)
+        # Create distributed client
+        client = Client(cluster)
+
+        stack.enter_context(cluster)
+        stack.enter_context(client)
 
         # Run application script
         return _predict(args)
@@ -326,8 +286,7 @@ def _predict(args):
                           None, jones, None, None, None, None)
 
         # Reshape (2, 2) correlation to shape (4,)
-        if corrs == 4:
-            vis = vis.reshape(vis.shape[:2] + (4,))
+        vis = vis.reshape(vis.shape[:2] + (corrs,))
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(
@@ -335,29 +294,10 @@ def _predict(args):
         # Create a write to the table
         write = xds_to_table(xds, args.ms, [args.output_column])
 
-        def _force_gc(w):
-            """
-            Pass through function that garbage collects all
-            three generations after a chunk of visibilities
-            have been written
-            """
-            gc.collect(0)
-            gc.collect(1)
-            gc.collect(2)
-            return w
-
-        write = write.map_blocks(_force_gc, dtype=write.dtype)
-
         # Add to the list of writes
         writes.append(write)
 
-    with ExitStack() as stack:
-        if sys.stdout.isatty():
-            # Default progress bar in user terminal
-            stack.enter_context(ProgressBar())
-        else:
-            # Log progress every 5 minutes
-            stack.enter_context(ProgressBar(minimum=2*60, dt=5))
+    # Submit all graph computations in parallel
+    write_futures = dask.persist(writes)
+    progress(write_futures, interval="100ms" if sys.stdout.isatty() else "5m")
 
-        # Submit all graph computations in parallel
-        dask.compute(writes)

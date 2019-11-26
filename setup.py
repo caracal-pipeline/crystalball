@@ -5,6 +5,7 @@ from distutils.core import setup
 requirements = [
     "codex-africanus[dask] >= 0.2.0",
     "dask-ms >= 0.2.0",
+    "distributed >= 2.6.0",
     "regions",
     "psutil"
 ]
