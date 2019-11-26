@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from contextlib import ExitStack
-import gc
 
 from distributed import LocalCluster, Client
 from distributed.diagnostics.progressbar import progress
@@ -300,4 +299,3 @@ def _predict(args):
     # Submit all graph computations in parallel
     write_futures = dask.persist(writes)
     progress(write_futures, interval="100ms" if sys.stdout.isatty() else "5m")
-

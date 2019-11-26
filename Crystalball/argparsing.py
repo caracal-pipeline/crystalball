@@ -11,8 +11,9 @@ def _num_workers(nworkers_str):
 
     try:
         return int(nworkers_str)
-    except ValueError as e:
-        raise argparse.ArgumentError("%s is not a valid integer" % nworkers_str)
+    except ValueError:
+        raise argparse.ArgumentError("%s is not a valid integer"
+                                     % nworkers_str)
 
 
 def create_parser():
