@@ -112,21 +112,24 @@ def predict():
     # Parse application args
     args = create_parser().parse_args([a for a in sys.argv[1:]])
 
-    with ExitStack() as stack:
-        # Create a distributed LocalCluster
-        cluster = LocalCluster(processes=False,
-                               nanny=False,
-                               n_workers=args.num_workers,
-                               threads_per_worker=1,
-                               memory_limit=None)
-        # Create distributed client
-        client = Client(cluster)
+    # with ExitStack() as stack:
+    #     # Create a distributed LocalCluster
+    #     cluster = LocalCluster(processes=False,
+    #                            n_workers=args.num_workers,
+    #                            threads_per_worker=1,
+    #                            memory_limit=None)
+    #     # Create distributed client
+    #     client = Client(cluster)
 
-        stack.enter_context(cluster)
-        stack.enter_context(client)
+    kwargs = dict(processes=False,
+                  n_workers=args.num_workers,
+                  threads_per_worker=1,
+                  memory_limit='8gb')
 
-        # Run application script
-        return _predict(args)
+    with LocalCluster(**kwargs) as cluster:
+        with Client(cluster) as client:
+            # Run application script
+            return _predict(args)
 
 
 @requires_optional("dask.array", "daskms", opt_import_error)
@@ -190,8 +193,9 @@ def _predict(args):
                            chunks={"row": args.row_chunks})
 
     select_fields = valid_field_ids(field_ds, args.fields)
+    datasets = list(filter_datasets(datasets, select_fields))
 
-    for xds in filter_datasets(datasets, select_fields):
+    for xds in datasets:
         # Extract frequencies from the spectral window associated
         # with this data descriptor id
         field = field_ds[xds.attrs['FIELD_ID']]
@@ -294,8 +298,54 @@ def _predict(args):
         write = xds_to_table(xds, args.ms, [args.output_column])
 
         # Add to the list of writes
-        writes.append(write)
+        writes.extend(write)
 
-    # Submit all graph computations in parallel
-    write_futures = dask.persist(writes)
-    progress(write_futures, interval="100ms" if sys.stdout.isatty() else "5m")
+    write_futures = []
+    priority_map = {}
+    worker_map = {}
+
+    from itertools import product, cycle
+    from distributed import default_client
+
+    client = default_client()
+    workers = list(client.scheduler_info()['workers'].keys())
+
+    from Crystalball.dask_util import Key
+    assert len(datasets) == len(writes)
+
+    # Initial priority
+    priority = 0
+    # Cycle through workers
+    worker_cycle = cycle(workers)
+
+    for ds, w in zip(datasets, writes):
+        mvis_writes = w.MODEL_DATA.data
+
+        for r in range(uvw.numblocks[0]):
+            # Set priority of load operations for this row chunk
+            priority_map[Key((xds.UVW.data.name, r))] = priority
+            priority_map[Key((xds.ANTENNA1.data.name, r))] = priority
+            priority_map[Key((xds.ANTENNA2.data.name, r))] = priority
+
+            # Set priority of write operation for this row chunk
+            chan_corr_bids = map(range, mvis_writes.numblocks[1:])
+            mvis_keys = product((mvis_writes.name,), (r,), *chan_corr_bids)
+            mvis_keys = list(map(Key, mvis_keys))
+            priority_map.update((k, priority) for k in mvis_keys)
+
+            # Now increment the priority for the next row chunk
+            priority += 10
+
+            # Get a worker (round-robin)
+            w = next(worker_cycle)
+
+            # Assign worker for this row chunk
+            worker_map[Key((xds.UVW.data.name, r))] = w
+            worker_map[Key((xds.ANTENNA1.data.name, r))] = w
+            worker_map[Key((xds.ANTENNA2.data.name, r))] = w
+            worker_map.update((k, w) for k in mvis_keys)
+
+    priority_map = {}
+    worker_map = {}
+    futures = dask.persist(writes, priority=priority_map, workers=worker_map)
+    progress(futures)
