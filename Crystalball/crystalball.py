@@ -298,54 +298,7 @@ def _predict(args):
         write = xds_to_table(xds, args.ms, [args.output_column])
 
         # Add to the list of writes
-        writes.extend(write)
+        writes.append(write)
 
-    write_futures = []
-    priority_map = {}
-    worker_map = {}
-
-    from itertools import product, cycle
-    from distributed import default_client
-
-    client = default_client()
-    workers = list(client.scheduler_info()['workers'].keys())
-
-    from Crystalball.dask_util import Key
-    assert len(datasets) == len(writes)
-
-    # Initial priority
-    priority = 0
-    # Cycle through workers
-    worker_cycle = cycle(workers)
-
-    for ds, w in zip(datasets, writes):
-        mvis_writes = w.MODEL_DATA.data
-
-        for r in range(uvw.numblocks[0]):
-            # Set priority of load operations for this row chunk
-            priority_map[Key((xds.UVW.data.name, r))] = priority
-            priority_map[Key((xds.ANTENNA1.data.name, r))] = priority
-            priority_map[Key((xds.ANTENNA2.data.name, r))] = priority
-
-            # Set priority of write operation for this row chunk
-            chan_corr_bids = map(range, mvis_writes.numblocks[1:])
-            mvis_keys = product((mvis_writes.name,), (r,), *chan_corr_bids)
-            mvis_keys = list(map(Key, mvis_keys))
-            priority_map.update((k, priority) for k in mvis_keys)
-
-            # Now increment the priority for the next row chunk
-            priority += 10
-
-            # Get a worker (round-robin)
-            w = next(worker_cycle)
-
-            # Assign worker for this row chunk
-            worker_map[Key((xds.UVW.data.name, r))] = w
-            worker_map[Key((xds.ANTENNA1.data.name, r))] = w
-            worker_map[Key((xds.ANTENNA2.data.name, r))] = w
-            worker_map.update((k, w) for k in mvis_keys)
-
-    priority_map = {}
-    worker_map = {}
-    futures = dask.persist(writes, priority=priority_map, workers=worker_map)
-    progress(futures)
+    futures = dask.persist(writes)
+    progress(futures, interval="100ms" if sys.stdout.isatty() else "5m")
