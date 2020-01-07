@@ -4,7 +4,7 @@ from distutils.core import setup
 
 requirements = [
     "codex-africanus[dask] >= 0.2.0",
-    "dask-ms >= 0.2.0",
+    "dask-ms >= 0.2.3",
     "regions",
     "psutil"
 ]
