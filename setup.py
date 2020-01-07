@@ -14,7 +14,7 @@ extras_require = {
 }
 
 PACKAGE_NAME = 'crystalball'
-__version__ = '0.2.2'
+__version__ = '0.2.4'
 
 setup(name=PACKAGE_NAME,
       version=__version__,
