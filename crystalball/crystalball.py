@@ -49,17 +49,6 @@ def create_parser():
                    help="Number of sky model components that are processed in "
                         "a single chunk. If 0 it wil be set automatically. "
                         "Default is 0.")
-    p.add_argument("--exp-sign-convention", choices=['casa', 'thompson'],
-                   default='casa',
-                   help="Sign convention to use for the complex exponential. "
-                        "'casa' specifies the e^(2.pi.I) convention while "
-                        "'thompson' specifies the e^(-2.pi.I) convention in "
-                        "the white book and Fourier analysis literature. "
-                        "Defaults to '%(default)s'")
-    p.add_argument("-sp", "--spectra", action="store_true",
-                   help="Optional. Model sources as non-flat spectra. "
-                        "The spectral coefficients and reference frequency "
-                        "must be present in the sky model.")
     p.add_argument("-w", "--within", type=str,
                    help="Optional. Give JS9 region file. Only sources within "
                         "those regions will be included.")
