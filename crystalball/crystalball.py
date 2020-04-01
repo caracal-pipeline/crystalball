@@ -58,10 +58,10 @@ def create_parser():
                    help="Select only N brightest sources.")
     p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
                    help="Explicitly set the number of worker threads.")
-    p.add_argument("-mf", "--memory-fraction", type=float, default=0.5,
+    p.add_argument("-mf", "--memory-fraction", type=float, default=0.1,
                    help="Fraction of system RAM that can be used. "
                         "Used when setting automatically the "
-                        "chunk size. Default in 0.5.")
+                        "chunk size. Default in 0.1.")
 
     return p
 
