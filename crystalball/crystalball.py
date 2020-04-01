@@ -19,7 +19,7 @@ else:
     opt_import_error = None
 
 from africanus.coordinates.dask import radec_to_lm
-from africanus.rime.dask import phase_delay, predict_vis
+from africanus.rime.dask import wsclean_predict
 from africanus.model.coherency.dask import convert
 from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
@@ -28,7 +28,7 @@ from crystalball.budget import get_budget
 from crystalball.filtering import valid_field_ids, filter_datasets
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
-from crystalball.wsclean import import_from_wsclean
+from crystalball.wsclean import import_from_wsclean, WSCleanModel
 
 
 def create_parser():
@@ -100,60 +100,52 @@ def support_tables(args, tables):
             for t in tables}
 
 
-def corr_schema(pol):
+def fill_correlations(vis, pol):
     """
     Parameters
     ----------
+    vis : :class:`dask.array.Array`
+        dask array of visibilities of shape :code:`(row, chan, 1)`
     pol : :class:`xarray.Dataset`
 
     Returns
     -------
-    corr_schema : list of list
-        correlation schema from the POLARIZATION table,
-        `[[9, 10], [11, 12]]` for example
+    vis : :class:`dask.array.Array`
+        dask array of visibilities of shape :code:`(row, chan, corr)`
     """
 
     corrs = pol.NUM_CORR.data[0]
-    corr_types = pol.CORR_TYPE.data[0]
 
-    if corrs == 4:
-        return [[corr_types[0], corr_types[1]],
-                [corr_types[2], corr_types[3]]]  # (2, 2) shape
+    assert vis.ndim == 3
+
+    if corrs == 1:
+        return vis
     elif corrs == 2:
-        return [corr_types[0], corr_types[1]]    # (2, ) shape
-    elif corrs == 1:
-        return [corr_types[0]]                   # (1, ) shape
+        vis = da.concatenate([vis, vis], axis=2)
+        return vis.rechunk({2: corrs})
+    elif corrs == 4:
+        zeros = da.zeros_like(vis)
+        vis = da.concatenate([vis, zeros, zeros, vis], axis=2)
+        return vis.rechunk({2: corrs})
     else:
-        raise ValueError("corrs %d not in (1, 2, 4)" % corrs)
+        raise ValueError("MS Correlations %d not in (1, 2, 4)" % corrs)
 
+def source_model_to_dask(source_model, chunks):
+    # Create chunked dask arrays from wsclean model arrays
+    sm = source_model
 
-def einsum_schema(pol, dospec):
-    """
-    Returns an einsum schema suitable for multiplying per-baseline
-    phase and brightness terms.
+    radec_chunks = (chunks,) + sm.radec.shape[1:]
+    spi_chunks = (chunks,) + sm.spi.shape[1:]
+    gauss_chunks = (chunks,) + sm.gauss_shape.shape[1:]
 
-    Parameters
-    ----------
-    pol : :class:`xarray.Dataset`
+    return WSCleanModel(da.from_array(sm.source_type, chunks=chunks),
+                        da.from_array(sm.radec, chunks=radec_chunks),
+                        da.from_array(sm.flux, chunks=chunks),
+                        da.from_array(sm.spi, chunks=spi_chunks),
+                        da.from_array(sm.ref_freq, chunks=chunks),
+                        da.from_array(sm.log_poly, chunks=chunks),
+                        da.from_array(sm.gauss_shape, chunks=gauss_chunks))
 
-    Returns
-    -------
-    einsum_schema : str
-    """
-    corrs = pol.NUM_CORR.values
-
-    if corrs == 4:
-        if dospec:
-            return "srf, sfij -> srfij"
-        else:
-            return "srf, sij -> srfij"
-    elif corrs in (2, 1):
-        if dospec:
-            return "srf, sfi -> srfi"
-        else:
-            return "srf, si -> srfi"
-    else:
-        raise ValueError("corrs %d not in (1, 2, 4)" % corrs)
 
 
 def predict():
@@ -176,12 +168,10 @@ def _predict(args):
 
     # Import source data from WSClean component list
     # See https://sourceforge.net/p/wsclean/wiki/ComponentList
-    (comp_type, radec, stokes,
-     spec_coeff, ref_freq, log_spec_ind,
-     gaussian_shape) = import_from_wsclean(args.sky_model,
-                                           include_regions=include_regions,
-                                           point_only=args.points_only,
-                                           num=args.num_sources or None)
+    source_model = import_from_wsclean(args.sky_model,
+                                       include_regions=include_regions,
+                                       point_only=args.points_only,
+                                       num=args.num_sources or None)
 
     # Add output column if it isn't present
     ms_rows, ms_datatype = ms_preprocess(args)
@@ -199,31 +189,19 @@ def _predict(args):
     max_num_corr = max([ss.NUM_CORR.data[0] for ss in pol_ds])
 
     # Perform resource budgeting
-    args.row_chunks, args.model_chunks = get_budget(comp_type.shape[0],
+    nsources = source_model.source_type.shape[0]
+    args.row_chunks, args.model_chunks = get_budget(nsources,
                                                     ms_rows,
                                                     max_num_chan,
                                                     max_num_corr,
                                                     ms_datatype, args)
 
-    radec = da.from_array(radec, chunks=(args.model_chunks, 2))
-    stokes = da.from_array(stokes, chunks=(args.model_chunks, 4))
 
-    if np.count_nonzero(comp_type == 'GAUSSIAN') > 0:
-        gaussian_components = True
-        gshape_chunks = (args.model_chunks, 3)
-        gaussian_shape = da.from_array(gaussian_shape, chunks=gshape_chunks)
-    else:
-        gaussian_components = False
-
-    if args.spectra:
-        spec_chunks = (args.model_chunks, spec_coeff.shape[1])
-        spec_coeff = da.from_array(spec_coeff, chunks=spec_chunks)
-        ref_freq = da.from_array(ref_freq, chunks=(args.model_chunks,))
+    source_model = source_model_to_dask(source_model, args.model_chunks)
 
     # List of write operations
     writes = []
 
-    # Construct a graph for each FIELD and DATA DESCRIPTOR
     datasets = xds_from_ms(args.ms,
                            columns=["UVW", "ANTENNA1", "ANTENNA2", "TIME"],
                            group_cols=["FIELD_ID", "DATA_DESC_ID"],
@@ -242,91 +220,29 @@ def _predict(args):
 
         corrs = pol.NUM_CORR.values
 
-        lm = radec_to_lm(radec, field.PHASE_DIR.data[0][0])
-
-        if args.exp_sign_convention == 'casa':
-            uvw = -xds.UVW.data
-        elif args.exp_sign_convention == 'thompson':
-            uvw = xds.UVW.data
-        else:
-            raise ValueError("Invalid sign convention '%s'" % args.sign)
-
-        if args.spectra:
-            # flux density at reference frequency ...
-            # ... for logarithmic polynomial functions
-            if log_spec_ind:
-                Is = da.log(stokes[:, 0, None])*frequency[None, :]**0
-            # ... or for ordinary polynomial functions
-            else:
-                Is = stokes[:, 0, None]*frequency[None, :]**0
-            # additional terms of SED ...
-            for jj in range(spec_coeff.shape[1]):
-                # ... for logarithmic polynomial functions
-                if log_spec_ind:
-                    Is += spec_coeff[:, jj, None] * \
-                        da.log((frequency[None, :]/ref_freq[:, None])**(jj+1))
-                # ... or for ordinary polynomial functions
-                else:
-                    Is += spec_coeff[:, jj, None] * \
-                        (frequency[None, :]/ref_freq[:, None]-1)**(jj+1)
-            if log_spec_ind:
-                Is = da.exp(Is)
-            Qs = da.zeros_like(Is)
-            Us = da.zeros_like(Is)
-            Vs = da.zeros_like(Is)
-            # stack along new axis and make it the last axis of the new array
-            spectrum = da.stack([Is, Qs, Us, Vs], axis=-1)
-            spectrum = spectrum.rechunk(
-                spectrum.chunks[:2] + (spectrum.shape[2],))
+        lm = radec_to_lm(source_model.radec, field.PHASE_DIR.data[0][0])
 
         print('-------------------------------------------')
-        print('Nr sources        = {0:d}'.format(stokes.shape[0]))
+        print('Nr sources        = {0:d}'.format(nsources))
         print('-------------------------------------------')
-        print('stokes.shape      = {0:}'.format(stokes.shape))
+        print('Correlations      = {0:}'.format(corrs))
         print('frequency.shape   = {0:}'.format(frequency.shape))
-        if args.spectra:
-            print('Is.shape          = {0:}'.format(Is.shape))
-        if args.spectra:
-            print('spectrum.shape    = {0:}'.format(spectrum.shape))
 
-        # (source, row, frequency)
-        phase = phase_delay(lm, uvw, frequency)
-        # If at least one Gaussian component is present in the component
-        # list then all sources are modelled as Gaussian components
-        # (Delta components have zero width)
-        if gaussian_components:
-            phase *= gaussian(uvw, frequency, gaussian_shape)
-        # (source, frequency, corr_products)
-        brightness = convert(spectrum if args.spectra else stokes,
-                             ["I", "Q", "U", "V"],
-                             corr_schema(pol))
+        vis = wsclean_predict(xds.UVW.data,
+                              lm,
+                              source_model.source_type,
+                              source_model.flux,
+                              source_model.spi,
+                              source_model.log_poly,
+                              source_model.ref_freq,
+                              source_model.gauss_shape,
+                              frequency)
 
-        print('brightness.shape  = {0:}'.format(brightness.shape))
-        print('phase.shape       = {0:}'.format(phase.shape))
-        print('-------------------------------------------')
-        print('Attempting phase-brightness einsum with "{0:s}"'
-              .format(einsum_schema(pol, args.spectra)))
+        print(vis)
+        vis = fill_correlations(vis, pol)
+        print(vis)
 
-        # (source, row, frequency, corr_products)
-        jones = da.einsum(einsum_schema(pol, args.spectra), phase, brightness)
-        print('jones.shape       = {0:}'.format(jones.shape))
-        print('-------------------------------------------')
-        if gaussian_components:
-            print('Some Gaussian sources found')
-        else:
-            print('All sources are Delta functions')
-        print('-------------------------------------------')
 
-        # Identify time indices
-        _, time_index = da.unique(xds.TIME.data, return_inverse=True)
-
-        # Predict visibilities
-        vis = predict_vis(time_index, xds.ANTENNA1.data, xds.ANTENNA2.data,
-                          None, jones, None, None, None, None)
-
-        # Reshape (2, 2) correlation to shape (4,)
-        if corrs == 4:
-            vis = vis.reshape(vis.shape[:2] + (4,))
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(
