@@ -24,11 +24,11 @@ from africanus.model.coherency.dask import convert
 from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 
-from Crystalball.budget import get_budget
-from Crystalball.filtering import valid_field_ids, filter_datasets
-from Crystalball.ms import ms_preprocess
-from Crystalball.region import load_regions
-from Crystalball.wsclean import import_from_wsclean
+from crystalball.budget import get_budget
+from crystalball.filtering import valid_field_ids, filter_datasets
+from crystalball.ms import ms_preprocess
+from crystalball.region import load_regions
+from crystalball.wsclean import import_from_wsclean
 
 
 def create_parser():
