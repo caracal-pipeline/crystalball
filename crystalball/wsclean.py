@@ -135,7 +135,7 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
                             wsclean_comps['Orientation']),
                            axis=-1)
 
-    return WSCleanModel(wsclean_comps['Type'], 
+    return WSCleanModel(wsclean_comps['Type'],
                         radec,
                         wsclean_comps['I'],
                         wsclean_comps['SpectralIndex'],

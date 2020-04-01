@@ -5,7 +5,6 @@ import argparse
 from contextlib import ExitStack
 
 from dask.diagnostics import ProgressBar
-import numpy as np
 import sys
 
 
@@ -20,8 +19,6 @@ else:
 
 from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
-from africanus.model.coherency.dask import convert
-from africanus.model.shape.dask import gaussian
 from africanus.util.requirements import requires_optional
 
 from crystalball.budget import get_budget
@@ -130,6 +127,7 @@ def fill_correlations(vis, pol):
     else:
         raise ValueError("MS Correlations %d not in (1, 2, 4)" % corrs)
 
+
 def source_model_to_dask(source_model, chunks):
     # Create chunked dask arrays from wsclean model arrays
     sm = source_model
@@ -145,7 +143,6 @@ def source_model_to_dask(source_model, chunks):
                         da.from_array(sm.ref_freq, chunks=chunks),
                         da.from_array(sm.log_poly, chunks=chunks),
                         da.from_array(sm.gauss_shape, chunks=gauss_chunks))
-
 
 
 def predict():
@@ -195,7 +192,6 @@ def _predict(args):
                                                     max_num_chan,
                                                     max_num_corr,
                                                     ms_datatype, args)
-
 
     source_model = source_model_to_dask(source_model, args.model_chunks)
 
