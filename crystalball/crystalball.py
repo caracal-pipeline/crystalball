@@ -238,11 +238,7 @@ def _predict(args):
                               source_model.gauss_shape,
                               frequency)
 
-        print(vis)
         vis = fill_correlations(vis, pol)
-        print(vis)
-
-
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(
