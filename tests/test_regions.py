@@ -1,7 +1,7 @@
 from astropy.coordinates import SkyCoord, Angle
 import astropy.units as units
 
-from Crystalball.region import load_regions
+from crystalball.region import load_regions
 
 
 def test_regions(ds9_region_file):

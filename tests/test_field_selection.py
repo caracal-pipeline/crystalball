@@ -2,7 +2,7 @@ import dask.array as da
 import numpy as np
 
 from daskms import Dataset
-from Crystalball.filtering import valid_field_ids
+from crystalball.filtering import valid_field_ids
 
 
 def test_select_fields():
