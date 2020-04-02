@@ -3,7 +3,7 @@ import numpy as np
 
 
 def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
-               fudge_factor=0.55, row2source_ratio=100):
+               fudge_factor=1.25, row2source_ratio=100):
     systmem = np.float(psutil.virtual_memory()[0])
     if not cb_args.num_workers:
         nrthreads = psutil.cpu_count()
