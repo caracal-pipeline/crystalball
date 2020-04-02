@@ -157,6 +157,10 @@ def predict():
 
 @requires_optional("dask.array", "daskms", opt_import_error)
 def _predict(args):
+    import pkg_resources
+    version = pkg_resources.get_distribution("crystalball").version
+    log.info("Crystalball version {0}", version)
+
     # get inclusion regions
     include_regions = load_regions(args.within) if args.within else []
 
