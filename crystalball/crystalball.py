@@ -3,7 +3,9 @@
 
 import argparse
 from contextlib import ExitStack
+import warnings
 
+from dask.array import PerformanceWarning
 from dask.diagnostics import ProgressBar
 from loguru import logger as log
 import sys
@@ -213,15 +215,19 @@ def _predict(args):
 
         lm = radec_to_lm(source_model.radec, field.PHASE_DIR.data[0][0])
 
-        vis = wsclean_predict(xds.UVW.data,
-                              lm,
-                              source_model.source_type,
-                              source_model.flux,
-                              source_model.spi,
-                              source_model.log_poly,
-                              source_model.ref_freq,
-                              source_model.gauss_shape,
-                              frequency)
+        with warnings.catch_warnings():
+            # Ignore dask chunk warnings emitted when going from 1D
+            # inputs to a 2D space of chunks
+            warnings.simplefilter('ignore', category=PerformanceWarning)
+            vis = wsclean_predict(xds.UVW.data,
+                                lm,
+                                source_model.source_type,
+                                source_model.flux,
+                                source_model.spi,
+                                source_model.log_poly,
+                                source_model.ref_freq,
+                                source_model.gauss_shape,
+                                frequency)
 
         vis = fill_correlations(vis, pol)
 
