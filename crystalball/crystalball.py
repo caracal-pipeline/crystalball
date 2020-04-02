@@ -224,14 +224,14 @@ def _predict(args):
             # inputs to a 2D space of chunks
             warnings.simplefilter('ignore', category=PerformanceWarning)
             vis = wsclean_predict(xds.UVW.data,
-                                lm,
-                                source_model.source_type,
-                                source_model.flux,
-                                source_model.spi,
-                                source_model.log_poly,
-                                source_model.ref_freq,
-                                source_model.gauss_shape,
-                                frequency)
+                                  lm,
+                                  source_model.source_type,
+                                  source_model.flux,
+                                  source_model.spi,
+                                  source_model.log_poly,
+                                  source_model.ref_freq,
+                                  source_model.gauss_shape,
+                                  frequency)
 
         vis = fill_correlations(vis, pol)
 
