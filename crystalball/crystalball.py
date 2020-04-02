@@ -88,11 +88,15 @@ def support_tables(args, tables):
 
 def fill_correlations(vis, pol):
     """
+    Expands single correlation produced by wsclean_predict to the
+    full set of correlations.
+
     Parameters
     ----------
     vis : :class:`dask.array.Array`
         dask array of visibilities of shape :code:`(row, chan, 1)`
     pol : :class:`xarray.Dataset`
+        MS Polarisation dataset.
 
     Returns
     -------
