@@ -5,6 +5,7 @@ import argparse
 from contextlib import ExitStack
 
 from dask.diagnostics import ProgressBar
+from loguru import logger as log
 import sys
 
 
@@ -21,6 +22,7 @@ from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
 from africanus.util.requirements import requires_optional
 
+import crystalball.logger_init  # noqa
 from crystalball.budget import get_budget
 from crystalball.filtering import valid_field_ids, filter_datasets
 from crystalball.ms import ms_preprocess
@@ -211,12 +213,6 @@ def _predict(args):
 
         lm = radec_to_lm(source_model.radec, field.PHASE_DIR.data[0][0])
 
-        print('-------------------------------------------')
-        print('Nr sources        = {0:d}'.format(nsources))
-        print('-------------------------------------------')
-        print('Correlations      = {0:}'.format(corrs))
-        print('frequency.shape   = {0:}'.format(frequency.shape))
-
         vis = wsclean_predict(xds.UVW.data,
                               lm,
                               source_model.source_type,
@@ -228,6 +224,14 @@ def _predict(args):
                               frequency)
 
         vis = fill_correlations(vis, pol)
+
+        log.info('Field {0:d} DDID {1:d}', xds.FIELD_ID, xds.DATA_DESC_ID)
+        log.info('-------------------------------------------')
+        log.info('Nr sources        = {0:d}', nsources)
+        log.info('-------------------------------------------')
+        log.info('Correlations      = {0:}', corrs)
+        log.info('frequency.shape   = {0:}', frequency.shape)
+        log.info('visibility.shape  = {0:}', vis.shape)
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(

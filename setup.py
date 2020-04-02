@@ -11,6 +11,7 @@ requirements = [
     "@master",
 
     "dask-ms >= 0.2.3",
+    "loguru",
     "regions",
     "psutil"
 ]

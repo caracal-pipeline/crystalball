@@ -1,3 +1,4 @@
+from loguru import logger as log
 import psutil
 import numpy as np
 
@@ -10,13 +11,13 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
     else:
         nrthreads = cb_args.num_workers
 
-    print('-------------------------------------------')
-    print('system RAM = {0:.2f} GB'.format(systmem/1024**3))
-    print('nr of logical CPUs = {0:d}'.format(nrthreads))
-    print('nr sources = {0:d}'.format(nr_sources))
-    print('nr rows    = {0:d}'.format(nr_rows))
-    print('nr chans   = {0:d}'.format(nr_chans))
-    print('nr corrs   = {0:d}'.format(nr_corrs))
+    log.info('-------------------------------------------')
+    log.info('system RAM = {0:.2f} GB', systmem/1024**3)
+    log.info('nr of logical CPUs = {0:d}', nrthreads)
+    log.info('nr sources = {0:d}', nr_sources)
+    log.info('nr rows    = {0:d}', nr_rows)
+    log.info('nr chans   = {0:d}', nr_chans)
+    log.info('nr corrs   = {0:d}', nr_corrs)
 
     data_type = {'complex': 'complex64', 'dcomplex': 'complex128'}[data_type]
     data_bytes = np.dtype(data_type).itemsize
@@ -39,13 +40,11 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
                          'leave both unset (=0); '
                          'you cannot set only one of them.')
 
-    print('sources per chunk = {0:.0f} {1}'
-          .format(sources_per_chunk, strat_type))
-    print('rows per chunk    = {0:.0f} {1}'
-          .format(rows_per_chunk, strat_type))
+    log.info('sources per chunk = {0:.0f} {1}', sources_per_chunk, strat_type)
+    log.info('rows per chunk    = {0:.0f} {1}', rows_per_chunk, strat_type)
 
     memory_usage = (rows_per_chunk * memory_per_row * nrthreads
                     + sources_per_chunk)
-    print('expected memory usage = {0:.2f} GB'.format(memory_usage/1024**3))
+    log.info('expected memory usage = {0:.2f} GB', memory_usage/1024**3)
 
     return rows_per_chunk, sources_per_chunk
