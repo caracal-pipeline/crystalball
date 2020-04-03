@@ -3,8 +3,9 @@
 from distutils.core import setup
 
 requirements = [
-    "codex-africanus[dask] >= 0.2.0",
+    "codex-africanus[dask] >= 0.2.1",
     "dask-ms >= 0.2.3",
+    "loguru",
     "regions",
     "psutil"
 ]
@@ -22,14 +23,14 @@ setup(name=PACKAGE_NAME,
       author="Paolo Serra",
       author_email="paolo80serra@gmail.com",
       entry_points={
-        'console_scripts': ['crystalball=Crystalball.crystalball:predict'],
+        'console_scripts': ['crystalball=crystalball.crystalball:predict'],
       },
       extras_require=extras_require,
       url="https://github.com/paoloserra/crystalball",
-      packages=["Crystalball"],
+      packages=["crystalball"],
       install_requires=requirements,
       include_package_data=True,
-      python_requires=">=3.5",
+      python_requires=">=3.6",
       license=["GNU GPL v2"],
       classifiers=[
         "Development Status :: 3 - Alpha",

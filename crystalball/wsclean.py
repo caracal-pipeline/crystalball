@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from collections import namedtuple
 import logging
 
 from africanus.model.wsclean.file_model import load
@@ -8,6 +9,10 @@ import numpy as np
 
 
 log = logging.getLogger(__name__)
+
+WSCleanModel = namedtuple("WSCleanModel", ["source_type", "radec",
+                                           "flux", "spi", "ref_freq",
+                                           "log_poly", "gauss_shape"])
 
 
 def import_from_wsclean(wsclean_comp_list, include_regions=[],
@@ -124,22 +129,16 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
                             wsclean_comps['Dec'][:, None]),
                            axis=1)
 
-    # Create stokes array
-    flux = wsclean_comps['I']
-    stokes = np.empty((flux.shape[0], 4), dtype=flux.dtype)
-    stokes[:, 0] = flux
-    stokes[:, 1:] = 0
-
     # Create gaussian shapes
     gauss_shape = np.stack((wsclean_comps['MajorAxis'],
                             wsclean_comps['MinorAxis'],
                             wsclean_comps['Orientation']),
                            axis=-1)
 
-    log_si = wsclean_comps['LogarithmicSI'][0] if len(flux) > 0 else False
-
-    return (wsclean_comps['Type'], radec, stokes,
-            wsclean_comps['SpectralIndex'],
-            wsclean_comps['ReferenceFrequency'],
-            log_si,
-            gauss_shape)
+    return WSCleanModel(wsclean_comps['Type'],
+                        radec,
+                        wsclean_comps['I'],
+                        wsclean_comps['SpectralIndex'],
+                        wsclean_comps['ReferenceFrequency'],
+                        wsclean_comps['LogarithmicSI'],
+                        gauss_shape)
