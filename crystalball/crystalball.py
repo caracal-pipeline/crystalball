@@ -26,6 +26,7 @@ from africanus.util.requirements import requires_optional
 
 import crystalball.logger_init  # noqa
 from crystalball.budget import get_budget
+from crystalball.progress import ProgressBar
 from crystalball.filtering import valid_field_ids, filter_datasets
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
