@@ -6,7 +6,6 @@ from contextlib import ExitStack
 import warnings
 
 from dask.array import PerformanceWarning
-from dask.diagnostics import ProgressBar
 from loguru import logger as log
 import sys
 
@@ -22,11 +21,11 @@ else:
 
 from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
+from africanus.util.dask_util import EstimatingProgressBar
 from africanus.util.requirements import requires_optional
 
 import crystalball.logger_init  # noqa
 from crystalball.budget import get_budget
-from crystalball.progress import ProgressBar
 from crystalball.filtering import valid_field_ids, filter_datasets
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
@@ -255,10 +254,10 @@ def _predict(args):
     with ExitStack() as stack:
         if sys.stdout.isatty():
             # Default progress bar in user terminal
-            stack.enter_context(ProgressBar())
+            stack.enter_context(EstimatingProgressBar())
         else:
             # Log progress every 5 minutes
-            stack.enter_context(ProgressBar(minimum=2*60, dt=5))
+            stack.enter_context(EstimatingProgressBar(minimum=2*60, dt=5))
 
         # Submit all graph computations in parallel
         dask.compute(writes)
