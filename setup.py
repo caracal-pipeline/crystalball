@@ -3,7 +3,13 @@
 from distutils.core import setup
 
 requirements = [
-    "codex-africanus[dask] >= 0.2.1",
+    # TODO(sjperkins)
+    # Update this once we're happy with the branch
+    #"codex-africanus[dask] >= 0.2.1",
+    "codex-africanus[dask]"
+    "@git+https://github.com/ska-sa/codex-africanus.git"
+    "@master",
+
     "dask-ms >= 0.2.3",
     "loguru",
     "regions",
