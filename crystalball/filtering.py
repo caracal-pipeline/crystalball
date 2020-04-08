@@ -58,5 +58,4 @@ def filter_datasets(datasets, field_id):
     datasets : list of :class:`daskms.Dataset`
         Filtered list of datasets
     """
-    field_id = set(field_id)
-    return [ds for ds in datasets if ds.FIELD_ID in field_id]
+    return [ds for ds in datasets if ds.FIELD_ID == field_id]
