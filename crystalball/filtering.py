@@ -44,7 +44,7 @@ def select_field_id(field_datasets, field=None):
             return i
 
     names = ["%s or %d" % (ds.NAME.values[0], i)
-                for i, ds in enumerate(field_datasets)]
+             for i, ds in enumerate(field_datasets)]
 
     raise ValueError("%s was requested, but no matching field "
                      "was found %s" % (field, names))

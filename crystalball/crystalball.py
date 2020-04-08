@@ -215,8 +215,6 @@ def _predict(args):
         pol = pol_ds[ddid.POLARIZATION_ID.data[0]]
         frequency = spw.CHAN_FREQ.data[0]
 
-        corrs = pol.NUM_CORR.values
-
         lm = radec_to_lm(source_model.radec, field.PHASE_DIR.data[0][0])
 
         with warnings.catch_warnings():
