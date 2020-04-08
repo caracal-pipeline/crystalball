@@ -235,13 +235,10 @@ def _predict(args):
 
         vis = fill_correlations(vis, pol)
 
-        log.info('-' * 50)
-        log.info('Field {0:d} DDID {1:d}', xds.FIELD_ID, xds.DATA_DESC_ID)
-        log.info('-' * 50)
-        log.info('Sources           = {0:d}', nsources)
-        log.info('Correlations      = {0:}', corrs)
-        log.info('frequency.shape   = {0:}', frequency.shape)
-        log.info('visibility.shape  = {0:}', vis.shape)
+        log.info('Field {0} DDID {1:d} rows {2} chans {3} corrs {4}',
+                 field.NAME.values[0],
+                 xds.DATA_DESC_ID,
+                 vis.shape[0], vis.shape[1], vis.shape[2])
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(

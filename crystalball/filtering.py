@@ -25,7 +25,8 @@ def select_field_id(field_datasets, field=None):
         if len(field_datasets) == 1:
             return 0
 
-        names = [ds.NAME.values[0] for ds in field_datasets]
+        names = ["%s or %d" % (ds.NAME.values[0], i)
+                 for i, ds in enumerate(field_datasets)]
 
         raise ValueError("No field was provided "
                          "but multiple fields are present "
@@ -41,6 +42,12 @@ def select_field_id(field_datasets, field=None):
 
         if str(names[0]) == field or str(i) == field:
             return i
+
+    names = ["%s or %d" % (ds.NAME.values[0], i)
+                for i, ds in enumerate(field_datasets)]
+
+    raise ValueError("%s was requested, but no matching field "
+                     "was found %s" % (field, names))
 
 
 def filter_datasets(datasets, field_id):
