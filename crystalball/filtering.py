@@ -24,7 +24,7 @@ def select_field_id(field_datasets, field=None):
     if field is None:
         if len(field_datasets) == 1:
             return 0
-        
+
         names = [ds.NAME.values[0] for ds in field_datasets]
 
         raise ValueError("No field was provided "
