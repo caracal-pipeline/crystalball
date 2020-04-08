@@ -1,11 +1,22 @@
 import dask.array as da
 import numpy as np
+import pytest
 
 from daskms import Dataset
-from crystalball.filtering import valid_field_ids
+from crystalball.filtering import select_field_id
 
 
-def test_select_fields():
+def test_select_field():
+    datasets = []
+
+    for field_name in ["DEEP2"]:
+        name = np.asarray([field_name], dtype=np.object)
+        ds = Dataset({"NAME": (("row",), da.from_array(name, chunks=1))})
+        datasets.append(ds)
+
+    # No field selection, single field id returned
+    assert select_field_id(datasets, None) == 0
+
     datasets = []
 
     for field_name in ["PKS-1934", "3C286", "DEEP2"]:
@@ -13,11 +24,13 @@ def test_select_fields():
         ds = Dataset({"NAME": (("row",), da.from_array(name, chunks=1))})
         datasets.append(ds)
 
-    # No field selection, all fields returned
-    assert valid_field_ids(datasets, None) == [0, 1, 2]
+    # No field selection, ValueError raised
+    with pytest.raises(ValueError):
+        assert select_field_id(datasets, None) == [0, 1, 2]
 
-    assert valid_field_ids(datasets, "PKS-1934") == [0]
-    assert valid_field_ids(datasets, "3C286, DEEP2") == [1, 2]
-    assert valid_field_ids(datasets, "1, DEEP2") == [1, 2]
-    assert valid_field_ids(datasets, "0, 1, 2") == [0, 1, 2]
-    assert valid_field_ids(datasets, "2, 3") == [2]
+    assert select_field_id(datasets, "PKS-1934") == 0
+    assert select_field_id(datasets, "0") == 0
+    assert select_field_id(datasets, "3C286") == 1
+    assert select_field_id(datasets, "1") == 1
+    assert select_field_id(datasets, "DEEP2") == 2
+    assert select_field_id(datasets, "2") == 2

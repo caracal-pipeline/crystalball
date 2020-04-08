@@ -11,7 +11,9 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
     else:
         nrthreads = cb_args.num_workers
 
-    log.info('-------------------------------------------')
+    log.info('-' * 50)
+    log.info('Budgeting')
+    log.info('-' * 50)
     log.info('system RAM = {0:.2f} GB', systmem/1024**3)
     log.info('nr of logical CPUs = {0:d}', nrthreads)
     log.info('nr sources = {0:d}', nr_sources)

@@ -26,7 +26,7 @@ from africanus.util.requirements import requires_optional
 
 import crystalball.logger_init  # noqa
 from crystalball.budget import get_budget
-from crystalball.filtering import valid_field_ids, filter_datasets
+from crystalball.filtering import select_field_id, filter_datasets
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
 from crystalball.wsclean import import_from_wsclean, WSCleanModel
@@ -41,12 +41,12 @@ def create_parser():
                         "Default is 'sky-model.txt'")
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
                    help="Output visibility column. Default is '%(default)s'")
-    p.add_argument("-f", "--fields", type=str,
-                   help="Comma-separated list of Field names or ids "
-                        "which should be predicted. "
-                        "All fields are predicted by default.")
+    p.add_argument("-f", "--field", type=str,
+                   help="The field name or id to be predicted. "
+                         "If not provided, only a single field "
+                         "may be present in the MS")
     p.add_argument("-rc", "--row-chunks", type=int, default=0,
-                   help="Number of rows of input .MS that are processed in "
+                   help="Number of rows of input MS that are processed in "
                         "a single chunk. If 0 it will be set automatically. "
                         "Default is 0.")
     p.add_argument("-mc", "--model-chunks", type=int, default=0,
@@ -204,9 +204,9 @@ def _predict(args):
                            group_cols=["FIELD_ID", "DATA_DESC_ID"],
                            chunks={"row": args.row_chunks})
 
-    select_fields = valid_field_ids(field_ds, args.fields)
+    field_id = select_field_id(field_ds, args.field)
 
-    for xds in filter_datasets(datasets, select_fields):
+    for xds in filter_datasets(datasets, field_id):
         # Extract frequencies from the spectral window associated
         # with this data descriptor id
         field = field_ds[xds.attrs['FIELD_ID']]
@@ -235,10 +235,10 @@ def _predict(args):
 
         vis = fill_correlations(vis, pol)
 
+        log.info('-' * 50)
         log.info('Field {0:d} DDID {1:d}', xds.FIELD_ID, xds.DATA_DESC_ID)
-        log.info('-------------------------------------------')
-        log.info('Nr sources        = {0:d}', nsources)
-        log.info('-------------------------------------------')
+        log.info('-' * 50)
+        log.info('Sources           = {0:d}', nsources)
         log.info('Correlations      = {0:}', corrs)
         log.info('frequency.shape   = {0:}', frequency.shape)
         log.info('visibility.shape  = {0:}', vis.shape)
