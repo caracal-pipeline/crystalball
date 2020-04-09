@@ -6,7 +6,6 @@ from contextlib import ExitStack
 import warnings
 
 from dask.array import PerformanceWarning
-from dask.diagnostics import ProgressBar
 from loguru import logger as log
 import sys
 
@@ -22,11 +21,12 @@ else:
 
 from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
+from africanus.util.dask_util import EstimatingProgressBar
 from africanus.util.requirements import requires_optional
 
 import crystalball.logger_init  # noqa
 from crystalball.budget import get_budget
-from crystalball.filtering import valid_field_ids, filter_datasets
+from crystalball.filtering import select_field_id, filter_datasets
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
 from crystalball.wsclean import import_from_wsclean, WSCleanModel
@@ -41,12 +41,12 @@ def create_parser():
                         "Default is 'sky-model.txt'")
     p.add_argument("-o", "--output-column", default="MODEL_DATA",
                    help="Output visibility column. Default is '%(default)s'")
-    p.add_argument("-f", "--fields", type=str,
-                   help="Comma-separated list of Field names or ids "
-                        "which should be predicted. "
-                        "All fields are predicted by default.")
+    p.add_argument("-f", "--field", type=str,
+                   help="The field name or id to be predicted. "
+                         "If not provided, only a single field "
+                         "may be present in the MS")
     p.add_argument("-rc", "--row-chunks", type=int, default=0,
-                   help="Number of rows of input .MS that are processed in "
+                   help="Number of rows of input MS that are processed in "
                         "a single chunk. If 0 it will be set automatically. "
                         "Default is 0.")
     p.add_argument("-mc", "--model-chunks", type=int, default=0,
@@ -204,9 +204,9 @@ def _predict(args):
                            group_cols=["FIELD_ID", "DATA_DESC_ID"],
                            chunks={"row": args.row_chunks})
 
-    select_fields = valid_field_ids(field_ds, args.fields)
+    field_id = select_field_id(field_ds, args.field)
 
-    for xds in filter_datasets(datasets, select_fields):
+    for xds in filter_datasets(datasets, field_id):
         # Extract frequencies from the spectral window associated
         # with this data descriptor id
         field = field_ds[xds.attrs['FIELD_ID']]
@@ -214,8 +214,6 @@ def _predict(args):
         spw = spw_ds[ddid.SPECTRAL_WINDOW_ID.data[0]]
         pol = pol_ds[ddid.POLARIZATION_ID.data[0]]
         frequency = spw.CHAN_FREQ.data[0]
-
-        corrs = pol.NUM_CORR.values
 
         lm = radec_to_lm(source_model.radec, field.PHASE_DIR.data[0][0])
 
@@ -235,13 +233,10 @@ def _predict(args):
 
         vis = fill_correlations(vis, pol)
 
-        log.info('Field {0:d} DDID {1:d}', xds.FIELD_ID, xds.DATA_DESC_ID)
-        log.info('-------------------------------------------')
-        log.info('Nr sources        = {0:d}', nsources)
-        log.info('-------------------------------------------')
-        log.info('Correlations      = {0:}', corrs)
-        log.info('frequency.shape   = {0:}', frequency.shape)
-        log.info('visibility.shape  = {0:}', vis.shape)
+        log.info('Field {0} DDID {1:d} rows {2} chans {3} corrs {4}',
+                 field.NAME.values[0],
+                 xds.DATA_DESC_ID,
+                 vis.shape[0], vis.shape[1], vis.shape[2])
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(
@@ -254,10 +249,10 @@ def _predict(args):
     with ExitStack() as stack:
         if sys.stdout.isatty():
             # Default progress bar in user terminal
-            stack.enter_context(ProgressBar())
+            stack.enter_context(EstimatingProgressBar())
         else:
             # Log progress every 5 minutes
-            stack.enter_context(ProgressBar(minimum=2*60, dt=5))
+            stack.enter_context(EstimatingProgressBar(minimum=2 * 60, dt=5))
 
         # Submit all graph computations in parallel
         dask.compute(writes)

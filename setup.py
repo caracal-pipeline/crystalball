@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 requirements = [
-    "codex-africanus[dask] >= 0.2.1",
+    "codex-africanus[dask] >= 0.2.2",
     "dask-ms >= 0.2.3",
     "loguru",
     "regions",

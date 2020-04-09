@@ -8,6 +8,7 @@ from loguru import logger
 
 class InterceptHandler(logging.Handler):
     """ Intercept logging messages and reroute them to the loguru. """
+
     def emit(self, record):
         # Get corresponding Loguru level if it exists
         try:

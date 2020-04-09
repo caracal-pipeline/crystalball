@@ -11,8 +11,10 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
     else:
         nrthreads = cb_args.num_workers
 
-    log.info('-------------------------------------------')
-    log.info('system RAM = {0:.2f} GB', systmem/1024**3)
+    log.info('-' * 50)
+    log.info('Budgeting')
+    log.info('-' * 50)
+    log.info('system RAM = {0:.2f} GB', systmem / 1024**3)
     log.info('nr of logical CPUs = {0:d}', nrthreads)
     log.info('nr sources = {0:d}', nr_sources)
     log.info('nr rows    = {0:d}', nr_rows)
@@ -21,7 +23,7 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
 
     data_type = {'complex': 'complex64', 'dcomplex': 'complex128'}[data_type]
     data_bytes = np.dtype(data_type).itemsize
-    bytes_per_row = nr_chans*nr_corrs*data_bytes
+    bytes_per_row = nr_chans * nr_corrs * data_bytes
     memory_per_row = bytes_per_row * fudge_factor
 
     if cb_args.model_chunks and cb_args.row_chunks:
@@ -45,6 +47,6 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
 
     memory_usage = (rows_per_chunk * memory_per_row * nrthreads
                     + sources_per_chunk)
-    log.info('expected memory usage = {0:.2f} GB', memory_usage/1024**3)
+    log.info('expected memory usage = {0:.2f} GB', memory_usage / 1024**3)
 
     return rows_per_chunk, sources_per_chunk
