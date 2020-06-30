@@ -1,12 +1,6 @@
 FROM kernsuite/base:5
 RUN docker-apt-install python3-pip \
-    python-casacore \
-    casacore-dev \
-    python-numpy \
-    python-setuptools \
-    libboost-python-dev \
-    libcfitsio-dev \
-    wcslib-dev
+    python-setuptools
 ADD . /code
 WORKDIR /code
 RUN pip3 install .[testing]
