@@ -3,8 +3,14 @@
 from distutils.core import setup
 
 requirements = [
-    "codex-africanus[dask] >= 0.2.2",
-    "dask-ms >= 0.2.3",
+    # TODO(sjperkins)
+    # revert to release version once we're happy this works
+    # "codex-africanus[dask]",
+    "codex-africanus[dask]"
+    "@git+https://github.com/ska-sa/codex-africanus.git"
+    "@wsclean-gaussian-conversion-fixes",
+
+    "dask-ms >= 0.2.5",
     "loguru",
     "regions",
     "psutil"
