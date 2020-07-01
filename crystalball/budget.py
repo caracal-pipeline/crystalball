@@ -31,6 +31,11 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
         sources_per_chunk = cb_args.model_chunks
         strat_type = "(user settings)"
     elif not cb_args.model_chunks and not cb_args.row_chunks:
+
+        if cb_args.memory_fraction > 1 or cb_args.memory_fraction <= 0:
+            raise ValueError('The memory fraction must be a number in the interval (0,1]. '
+                             'You have set it to {0:f} .'.format(cb_args.memory_fraction))
+
         allowed_rows_per_thread = (systmem * cb_args.memory_fraction /
                                    (memory_per_row * nrthreads))
         rows_per_chunk = int(min(nr_rows, allowed_rows_per_thread))
