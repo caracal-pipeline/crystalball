@@ -31,7 +31,7 @@ setup(name=PACKAGE_NAME,
       install_requires=requirements,
       include_package_data=True,
       python_requires=">=3.6",
-      license=["GNU GPL v2"],
+      license="GNU GPL v2",
       classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
