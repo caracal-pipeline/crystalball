@@ -15,7 +15,9 @@ in order for the build to succeed:
 
 Create and activate a Python3 virtual environment
 
-``virtualenv <name-of-virtualenv>``
+``virtualenv -p python3 <name-of-virtualenv>``
+
+(systems without a Python2 installation don't even need the ``-p python3`` specifier, but it doesn't hurt.)
 
 ``source <name-of-virtualenv>/bin/activate``
 
