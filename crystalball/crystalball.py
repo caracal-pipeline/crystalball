@@ -256,3 +256,5 @@ def _predict(args):
 
         # Submit all graph computations in parallel
         dask.compute(writes)
+
+    log.info("Finished")
