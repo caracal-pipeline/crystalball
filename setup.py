@@ -30,7 +30,7 @@ setup(name=PACKAGE_NAME,
       packages=["crystalball"],
       install_requires=requirements,
       include_package_data=True,
-      python_requires=">=3.6",
+      python_requires=">=3.7",
       license="GNU GPL v2",
       classifiers=[
         "Development Status :: 3 - Alpha",
