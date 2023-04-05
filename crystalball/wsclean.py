@@ -5,6 +5,8 @@ import logging
 
 from africanus.model.wsclean.file_model import load
 from astropy.coordinates import SkyCoord
+from astropy.io import fits
+from astropy.wcs import WCS, WCSSUB_CELESTIAL
 import numpy as np
 
 
@@ -15,8 +17,12 @@ WSCleanModel = namedtuple("WSCleanModel", ["source_type", "radec",
                                            "log_poly", "gauss_shape"])
 
 
-def import_from_wsclean(wsclean_comp_list, include_regions=[],
-                        point_only=False, num=None):
+def import_from_wsclean(wsclean_comp_list,
+                        include_regions=None,
+                        point_only=False,
+                        num=None,
+                        clean_mask_file=None,
+                        percent_flux=1.0):
     """
     Imports sources from wsclean, sorted from brightest to faintest.
     If ``include_regions`` is specified only those sources within
@@ -27,15 +33,19 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     ----------
     wsclean_comp_list : str
         wsclean component list file.
-    include_regions : List[:class:`regions.CircleSkyRegion`]
+    include_regions : List[:class:`regions.CircleSkyRegion`], optional
         List of valid region's. Only sources within these regions
         will be loaded.
-        Defaults to ``[]`` in which case, all sources are loaded.
+        Defaults to ``None`` in which case, all sources are loaded.
     point_only : bool, optional
         Only include point sources. Defaults to False
     num :  integer, optional
         Number of sources to include.
         If ``None`` all sources are returned.
+    clean_mask_file : str, optional
+        Clean mask file.
+    percent_flux : float
+        Percent of flux to include with each source
 
     Returns
     -------
@@ -113,6 +123,39 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
         wsclean_comps = {key: value[:num] for key, value
                          in wsclean_comps.items()}
         log.info("Selecting up %d brightest sources", num)
+
+    if clean_mask_file:
+        with fits.open(clean_mask_file) as cmf:
+            header = cmf[0].header
+            clean_mask = cmf[0].data
+
+            if clean_mask.ndim > 2:
+                clean_mask = clean_mask[..., 0]
+            elif clean_mask.ndim != 2:
+                raise ValueError(f"data shape {clean_mask.shape} in "
+                                 f"{clean_mask_file} does not have two axes")
+
+            wcsin = WCS(header, naxis=[WCSSUB_CELESTIAL])
+
+            ra = np.rad2deg(wsclean_comps["Ra"])
+            dec = np.rad2deg(wsclean_comps["Dec"])
+            flux = wsclean_comps["I"]
+            x, y = wcsin.wcs_world2pix(ra, dec, 0)
+            x, y = np.rint(x).astype(int), np.rint(y).astype(int)
+
+            log.info("Grouping sources by id's in %s", clean_mask_file)
+
+            source_ids = clean_mask[x, y]
+            nr_sources = clean_mask.max()
+            source_id_range = np.arange(1, nr_sources + 1)
+            integrated_fluxes = np.array([flux[sid == source_ids].sum() for sid in source_id_range])
+
+            flux_sort_index = np.argsort(integrated_fluxes)[::-1]
+            integrated_fluxes = integrated_fluxes[flux_sort_index]
+            total_flux = integrated_fluxes.sum()
+
+            sorted_ids = source_id_range[flux_sort_index]
+            field_flux_fraction = np.cumsum(integrated_fluxes) / total_flux
 
     # print if small subset
     if (num is not None and num < 100) or include_regions:

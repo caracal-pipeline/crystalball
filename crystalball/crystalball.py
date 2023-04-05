@@ -66,6 +66,8 @@ def create_parser():
                    help="Fraction of system RAM that can be used. "
                         "Used when setting automatically the "
                         "chunk size. Default in 0.1.")
+    p.add_argument("--clean-mask-file", required=False, default="",
+                   help="Clean Mask File. If supplied")
 
     return p
 
