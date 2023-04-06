@@ -1,3 +1,8 @@
+from functools import reduce
+from operator import mul
+
+import math
+
 from loguru import logger as log
 import psutil
 import numpy as np
@@ -56,3 +61,75 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
     log.info('expected memory usage = {0:.2f} GB', memory_usage / 1024**3)
 
     return rows_per_chunk, sources_per_chunk
+
+
+DESIRED_ELEMENTS = 250_000_000
+ROW_TO_SOURCE_RATIO = 100
+
+def budget(complex_dtype, nchan, ncorr, system_memory, processors):
+    """
+    A visibility predict generally computes `O(row x channel x correlation)`
+    space output, computing `O(source x row x channel x correlation)` values.
+
+    Given:
+
+        1. Number of channels
+        2. Number of correlations
+        3. System Memory
+        4. Number of Processors
+        5. Visibility data type
+
+    complex_dtype : np.dtype
+        Complex Data type
+    nchan : int
+        Number of channels
+    ncorr : int
+        Number of correlations
+    system_memory : int
+        Available system memory.
+    processors : int
+        Number of available processors
+
+    Returns
+    -------
+    nrows : int
+        Number of rows per chunk
+    nsrcs : int
+        Number of sources per chunk
+    """
+    nsource_nrows = DESIRED_ELEMENTS / (nchan * ncorr)
+    nrows = math.ceil(nsource_nrows / ROW_TO_SOURCE_RATIO)
+    nsrc = math.ceil(nsource_nrows / nrows)
+
+    vis_shape = (nrows, nchan, ncorr)
+    vis_bytes = reduce(mul, vis_shape, np.dtype(complex_dtype).itemsize)
+
+    while vis_bytes*processors > system_memory:
+        # We can't subdivide further, complain
+        if nrows == 1:
+            raise ValueError(f"It's impossible to fit {processors} complex visibility "
+                             f"chunks of size {vis_bytes / (1024.**2):.0f}MB and "
+                             f"shape {vis_shape} across {processors} processors "
+                             f"and total system memory of "
+                             f"{system_memory / (1024.**3):.0f}GB")
+
+        nrows = int(math.ceil(nrows / 2))
+        vis_shape = (nrows, nchan, ncorr)
+        vis_bytes = reduce(mul, vis_shape, np.dtype(complex_dtype).itemsize)
+
+    compute_elements = nsrc*nrows*nchan*ncorr
+
+    if compute_elements < DESIRED_ELEMENTS:
+        # Sources don't contribute to visibility memory as
+        # they are accumulated into visibility buffers
+        needed_bytes = DESIRED_ELEMENTS * np.dtype(complex_dtype).itemsize / nsrc
+        log.warning("Number of visibility elements reduce(mul, {0}, 1) == {1}) "
+                    "per chunk is less the desired number of elements {2}. "
+                    "crystalball may not fully utilise each CPU core. "
+                    "This can occur when system memory is small "
+                    "relative to the number of CPU cores on the system. "
+                    "crystalball needs to use approximately {3:.0f}MB per core",
+                    (nsrc, nrows, nchan, ncorr), compute_elements,
+                     DESIRED_ELEMENTS, needed_bytes / (1024.**2))
+
+    return nrows, nsrc
