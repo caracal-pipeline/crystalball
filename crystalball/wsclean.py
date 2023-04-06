@@ -156,6 +156,11 @@ def import_from_wsclean(wsclean_comp_list,
 
             sorted_ids = source_id_range[flux_sort_index]
             field_flux_fraction = np.cumsum(integrated_fluxes) / total_flux
+            brightest = sorted_ids[field_flux_fraction <= percent_flux]
+            print(f"Selected {len(brightest)} brightest sources out of {len(source_ids)}")
+            log.info("Selecting %d brightest sources out of %d", len(brightest), len(source_ids))
+            wsclean_comps = {k: v[brightest] for k, v in wsclean_comps.items()}
+
 
     # print if small subset
     if (num is not None and num < 100) or include_regions:

@@ -41,9 +41,16 @@ def clean_mask_fits_header():
         "BUNIT":                     ""
     }
 
+@pytest.fixture
+def model_sources():
+    return [
+        (1, -1, -1),
+        (1, -2, 3),
+        (2, 4, 5)]
+
 
 @pytest.fixture
-def wsclean_model_and_clean_mask(clean_mask_fits_header, tmp_path):
+def wsclean_model_and_clean_mask(clean_mask_fits_header, model_sources, tmp_path):
     """ Generate a synthetic wsclean model file and an associated clean mask """
     header = clean_mask_fits_header
     naxes = header["NAXIS"]
@@ -61,7 +68,7 @@ def wsclean_model_and_clean_mask(clean_mask_fits_header, tmp_path):
 
     lines = [wsclean_model_header]
 
-    for source_id, x, y in [(1, -1, -2), (1, -2, 3), (2, 4, 5)]:
+    for source_id, x, y in model_sources:
         nx = half_nax1 + x
         ny = half_nax2 + y
         cube[nx, ny, 0] = source_id
@@ -87,7 +94,6 @@ def wsclean_model_and_clean_mask(clean_mask_fits_header, tmp_path):
 def test_clean_mask(wsclean_model_and_clean_mask):
     model_file, clean_file = wsclean_model_and_clean_mask
 
-    results = import_from_wsclean(model_file, clean_mask_file=clean_file)
+    results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=1.0)
 
-    print(model_file)
-    print(clean_file)
+    print(results)
