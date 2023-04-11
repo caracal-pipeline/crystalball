@@ -34,7 +34,6 @@ jobs:
           python -m pip install -U
           pip
           setuptools
-          pipenv
 
       - name: Checkout source
         uses: actions/checkout@v2
@@ -42,10 +41,10 @@ jobs:
           fetch-depth: 1
 
       - name: Install base crystalball
-        run: pipenv install .[testing]
+        run: pip install .[testing]
 
       - name: Run complete test suite
-        run: pipenv run py.test -s -vvv tests/
+        run: py.test -s -vvv tests/
 
   deploy:
     needs: [test]
