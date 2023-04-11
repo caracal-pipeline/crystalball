@@ -66,21 +66,27 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
 DESIRED_ELEMENTS = 250_000_000
 ROW_TO_SOURCE_RATIO = 100
 
-def budget(complex_dtype, nchan, ncorr, system_memory, processors):
+def budget(complex_dtype, nsrc, nrow, nchan, ncorr, system_memory, processors):
     """
     A visibility predict generally computes `O(row x channel x correlation)`
     space output, computing `O(source x row x channel x correlation)` values.
 
     Given:
 
-        1. Number of channels
-        2. Number of correlations
+        1. Total Number of Sources
+        2. Total Number of Rows
+        1. Total Number of channels
+        2. Total Number of correlations
         3. System Memory
         4. Number of Processors
         5. Visibility data type
 
     complex_dtype : np.dtype
         Complex Data type
+    nsrc : int
+        Number of sources
+    nrow : int
+        Number of rows
     nchan : int
         Number of channels
     ncorr : int
@@ -92,44 +98,48 @@ def budget(complex_dtype, nchan, ncorr, system_memory, processors):
 
     Returns
     -------
-    nrows : int
+    nrow_chunks : int
         Number of rows per chunk
-    nsrcs : int
+    nsrc_chunks : int
         Number of sources per chunk
     """
-    nsource_nrows = DESIRED_ELEMENTS / (nchan * ncorr)
-    nrows = math.ceil(nsource_nrows / ROW_TO_SOURCE_RATIO)
-    nsrc = math.ceil(nsource_nrows / nrows)
+    complex_dtype = np.complex128  # In practice c128 is predicted in any case
 
-    vis_shape = (nrows, nchan, ncorr)
+    nsource_nrows = DESIRED_ELEMENTS / (nchan * ncorr)
+    nrow_chunks = math.ceil(nsource_nrows / ROW_TO_SOURCE_RATIO)
+    nsrc_chunks = math.ceil(nsource_nrows / nrow_chunks)
+    nrow_chunks = min(nrow_chunks, nrow)
+    nsrc_chunks = min(nsrc_chunks, nsrc)
+
+    vis_shape = (nrow_chunks, nchan, ncorr)
     vis_bytes = reduce(mul, vis_shape, np.dtype(complex_dtype).itemsize)
 
     while vis_bytes*processors > system_memory:
         # We can't subdivide further, complain
-        if nrows == 1:
+        if nrow_chunks == 1:
             raise ValueError(f"It's impossible to fit {processors} complex visibility "
                              f"chunks of size {vis_bytes / (1024.**2):.0f}MB and "
                              f"shape {vis_shape} across {processors} processors "
                              f"and total system memory of "
                              f"{system_memory / (1024.**3):.0f}GB")
 
-        nrows = int(math.ceil(nrows / 2))
-        vis_shape = (nrows, nchan, ncorr)
+        nrow_chunks = int(math.ceil(nrow_chunks / 2))
+        vis_shape = (nrow_chunks, nchan, ncorr)
         vis_bytes = reduce(mul, vis_shape, np.dtype(complex_dtype).itemsize)
 
-    compute_elements = nsrc*nrows*nchan*ncorr
+    compute_elements = nsrc_chunks*nrow_chunks*nchan*ncorr
 
     if compute_elements < DESIRED_ELEMENTS:
         # Sources don't contribute to visibility memory as
         # they are accumulated into visibility buffers
-        needed_bytes = DESIRED_ELEMENTS * np.dtype(complex_dtype).itemsize / nsrc
+        needed_bytes = DESIRED_ELEMENTS * np.dtype(complex_dtype).itemsize / nsrc_chunks
         log.warning("Number of visibility elements reduce(mul, {0}, 1) == {1}) "
                     "per chunk is less the desired number of elements {2}. "
                     "crystalball may not fully utilise each CPU core. "
                     "This can occur when system memory is small "
                     "relative to the number of CPU cores on the system. "
                     "crystalball needs to use approximately {3:.0f}MB per core",
-                    (nsrc, nrows, nchan, ncorr), compute_elements,
+                    (nsrc_chunks, nrow_chunks, nchan, ncorr), compute_elements,
                      DESIRED_ELEMENTS, needed_bytes / (1024.**2))
 
-    return nrows, nsrc
+    return nrow_chunks, nsrc_chunks
