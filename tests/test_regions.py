@@ -13,7 +13,7 @@ def test_regions(ds9_region_file):
 
     c2 = SkyCoord(299.8478137, 40.74316449, frame='fk5', unit='deg')
     assert regions[1].center.position_angle(c2) == Angle(0, unit='rad')
-    assert regions[1].radius == units.Quantity(0, unit='arcsec')
+    assert regions[1].radius == units.Quantity(1, unit='arcsec')
 
     c3 = SkyCoord(299.846081, 40.7386852, frame='fk5', unit='deg')
     assert regions[2].center.position_angle(c3) == Angle(0, unit='rad')
