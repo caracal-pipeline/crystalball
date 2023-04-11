@@ -6,7 +6,7 @@ requirements = [
     "codex-africanus[dask] >= 0.3.1",
     "dask-ms >= 0.2.6",
     "loguru",
-    "regions",
+    "regions >= 0.6",
     "psutil"
 ]
 
