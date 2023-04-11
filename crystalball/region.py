@@ -1,7 +1,7 @@
 import logging
 import tempfile
 
-from regions import read_ds9
+from regions import Regions
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def load_regions(region_file):
     with tempfile.NamedTemporaryFile() as tmpfile, open(region_file) as rf:
         tmpfile.write(rf.read().lower().encode())
         tmpfile.flush()
-        include_regions = read_ds9(tmpfile.name)
+        include_regions = Regions.read(tmpfile.name, format='ds9')
         log.info("Read %s inclusion region(s) from %s",
                  len(include_regions), region_file)
 
