@@ -103,11 +103,11 @@ def budget(complex_dtype, nsrc, nrow, nchan, ncorr, system_memory, processors):
     nsrc_chunks : int
         Number of sources per chunk
     """
-    complex_dtype = np.complex128  # In practice c128 is predicted in any case
+    complex_dtype = np.complex128  # wsclean_predict produces complex128 by default
 
     nsource_nrows = DESIRED_ELEMENTS / (nchan * ncorr)
-    nrow_chunks = math.ceil(nsource_nrows / ROW_TO_SOURCE_RATIO)
-    nsrc_chunks = math.ceil(nsource_nrows / nrow_chunks)
+    nrow_chunks = math.ceil(nsource_nrows / min(ROW_TO_SOURCE_RATIO, nsrc))
+    nsrc_chunks = math.ceil(nsource_nrows / min(nrow_chunks, nrow))
     nrow_chunks = min(nrow_chunks, nrow)
     nsrc_chunks = min(nsrc_chunks, nsrc)
 
@@ -130,16 +130,16 @@ def budget(complex_dtype, nsrc, nrow, nchan, ncorr, system_memory, processors):
     compute_elements = nsrc_chunks*nrow_chunks*nchan*ncorr
 
     if compute_elements < DESIRED_ELEMENTS:
-        # Sources don't contribute to visibility memory as
-        # they are accumulated into visibility buffers
-        needed_bytes = DESIRED_ELEMENTS * np.dtype(complex_dtype).itemsize / nsrc_chunks
-        log.warning("Number of visibility elements reduce(mul, {0}, 1) == {1}) "
-                    "per chunk is less the desired number of elements {2}. "
+        needed_bytes = DESIRED_ELEMENTS * np.dtype(complex_dtype).itemsize / ROW_TO_SOURCE_RATIO
+        log.warning("Number of visibility elements {0} == {1} "
+                    "per chunk is less than the desired number of elements {2}. "
                     "crystalball may not fully utilise each CPU core. "
-                    "This can occur when system memory is small "
-                    "relative to the number of CPU cores on the system. "
-                    "crystalball needs to use approximately {3:.0f}MB per core",
-                    (nsrc_chunks, nrow_chunks, nchan, ncorr), compute_elements,
-                     DESIRED_ELEMENTS, needed_bytes / (1024.**2))
+                    "This can occur when (1) the problem size is small or, "
+                    "(2) the number of CPU cores {3} multiplied by the approximately "
+                    "{4:.0f}MB crystalball needs to effectively use each core is greater "
+                    "than system memory {5:.1f}GB.",
+                    " x ".join(map(str, (nsrc_chunks, nrow_chunks, nchan, ncorr))),
+                    compute_elements, DESIRED_ELEMENTS,
+                    processors, needed_bytes / (1024.**2), system_memory / (1024.**3))
 
     return nrow_chunks, nsrc_chunks

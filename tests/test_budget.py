@@ -59,9 +59,17 @@ def test_desktop_budget(nsrc, nrow, complex_dtype, caplog):
     # but there's not a lot of work for each core to do
     assert (3, 100) == budget(complex_dtype, nsrc, nrow, 4096, 4, 8*(1024**2), 8)
     assert len(caplog.records) == 1
-    assert "reduce(mul, (100, 3, 4096, 4), 1) == 4915200" in caplog.text
+    assert "100 x 3 x 4096 x 4 == 4915200" in caplog.text
     assert "may not fully utilise each CPU core" in caplog.text
-    assert "needs to use approximately 38MB per core" in caplog.text
+    assert "by the approximately 38MB crystalball" in caplog.text
+
+    caplog.clear()
+    assert len(caplog.records) == 0
+    assert not caplog.text
+
+    # The problem size is very small
+    assert (10, 10) == budget(complex_dtype, 10, 10, 4096, 4, sysmem, 8)
+    assert "10 x 10 x 4096 x 4 == 1638400" in caplog.text
 
 
 @pytest.mark.parametrize("nsrc", [int(1e9)])
