@@ -14,6 +14,11 @@ extras_require = {
   'testing': ['pytest', 'pytest-flake8']
 }
 
+
+def readme():
+    with open("README.rst") as f:
+        return f.read()
+
 PACKAGE_NAME = 'crystalball'
 __version__ = '0.4.1'
 
@@ -30,6 +35,8 @@ setup(name=PACKAGE_NAME,
       packages=["crystalball"],
       install_requires=requirements,
       include_package_data=True,
+      long_description=readme(),
+      long_description_content_type="rst",
       python_requires=">=3.7",
       license="GNU GPL v2",
       classifiers=[
