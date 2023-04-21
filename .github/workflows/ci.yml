@@ -34,29 +34,17 @@ jobs:
           python -m pip install -U
           pip
           setuptools
-<<<<<<< HEAD
-          pipenv
-=======
->>>>>>> b6e8c9e72737bff29d543512b48fdb74298597d8
 
       - name: Checkout source
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
-<<<<<<< HEAD
-      - name: Install base crystalball
-        run: pipenv install .[testing]
-
-      - name: Run complete test suite
-        run: pipenv run py.test -s -vvv tests/
-=======
       - name: Install crystalball with testing utilities
         run: pip install .[testing]
 
       - name: Run complete test suite
         run: py.test -s -vvv tests/
->>>>>>> b6e8c9e72737bff29d543512b48fdb74298597d8
 
   deploy:
     needs: [test]
@@ -73,34 +61,14 @@ jobs:
         with:
           python-version: 3.8
 
-<<<<<<< HEAD
-      - name: Install latest setuptools, wheel, pip
-        run: python3 -m pip install -U pip setuptools wheel
-=======
       - name: Install latest setuptools, wheel, pip, build
         run: python3 -m pip install -U pip setuptools wheel build twine
->>>>>>> b6e8c9e72737bff29d543512b48fdb74298597d8
 
       - name: Checkout source
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
 
-<<<<<<< HEAD
-      - name: Build distributions
-        run: python setup.py sdist bdist_wheel
-
-      - name: Publish distribution 📦 to Test PyPI
-        uses: pypa/gh-action-pypi-publish@master
-        with:
-          user: __token__
-          password: ${{ secrets.test_pypi_token }}
-          repository_url: https://test.pypi.org/legacy/
-        continue-on-error: true
-
-      - name: Publish distribution 📦 to PyPI
-        uses: pypa/gh-action-pypi-publish@master
-=======
       - name: Build source distribution
         run: python -m build --sdist
 
@@ -112,7 +80,6 @@ jobs:
 
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
->>>>>>> b6e8c9e72737bff29d543512b48fdb74298597d8
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
         with:
           user: __token__
