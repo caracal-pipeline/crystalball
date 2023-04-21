@@ -157,9 +157,12 @@ def import_from_wsclean(wsclean_comp_list,
             sorted_ids = source_id_range[flux_sort_index]
             field_flux_fraction = np.cumsum(integrated_fluxes) / total_flux
             brightest = sorted_ids[field_flux_fraction <= percent_flux]
-            print(f"Selected {len(brightest)} brightest sources out of {len(source_ids)}")
-            log.info("Selecting %d brightest sources out of %d", len(brightest), len(source_ids))
-            wsclean_comps = {k: v[brightest] for k, v in wsclean_comps.items()}
+            mask = np.in1d(source_ids, brightest)
+            print(f"Selected {len(brightest)} brightest sources out of {nr_sources} total")
+            print(f"Selected {mask.sum()} components out of {mask.size} total")
+            log.info("Selecting %d brightest sources out of %d total",
+                    len(brightest), len(source_ids))
+            wsclean_comps = {k: v[mask] for k, v in wsclean_comps.items()}
 
 
     # print if small subset

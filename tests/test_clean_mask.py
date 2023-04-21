@@ -62,13 +62,12 @@ def wsclean_model_and_clean_mask(clean_mask_fits_header, model_sources, tmp_path
     half_nax1 = NAXIS1 // 2
     half_nax2 = NAXIS2 // 2
 
-    wsclean_model_header = (f"Format = Name, Type, Ra, Dec, I, SpectralIndex, "
-                            f"LogarithmicSI, ReferenceFrequency='{RESTFRE}', "
-                            f"MajorAxis, MinorAxis, Orientation")
-
-    lines = [wsclean_model_header]
+    lines = [f"Format = Name, Type, Ra, Dec, I, SpectralIndex, "
+             f"LogarithmicSI, ReferenceFrequency='{RESTFRE}', "
+             f"MajorAxis, MinorAxis, Orientation"]
 
     for source_id, x, y in model_sources:
+        assert source_id > 0
         nx = half_nax1 + x
         ny = half_nax2 + y
         cube[nx, ny, 0] = source_id
@@ -92,8 +91,17 @@ def wsclean_model_and_clean_mask(clean_mask_fits_header, model_sources, tmp_path
 
 
 def test_clean_mask(wsclean_model_and_clean_mask):
+    # 2 sources
+    # 1: 2 components of 1.0 flux
+    # 2: 1 component of 1.0 flux
+
     model_file, clean_file = wsclean_model_and_clean_mask
 
     results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=1.0)
+    assert len(results.source_type) == 3
 
-    print(results)
+    results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=0.67)
+    assert len(results.source_type) == 2
+
+    results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=0.66)
+    assert len(results.source_type) == 0
