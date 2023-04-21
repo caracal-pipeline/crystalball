@@ -2,6 +2,7 @@
 
 from collections import namedtuple
 import logging
+import re
 
 from africanus.model.wsclean.file_model import load
 from astropy.coordinates import SkyCoord
@@ -128,6 +129,20 @@ def import_from_wsclean(wsclean_comp_list,
         with fits.open(clean_mask_file) as cmf:
             header = cmf[0].header
             clean_mask = cmf[0].data
+
+            try:
+                origin = header["ORIGIN"].strip()
+            except KeyError:
+                raise ValueError(f"{clean_mask_file} FITS header "
+                                 f"doesn't contain an ORIGIN key")
+            else:
+                if m := re.match("^SoFiA (?P<version>\d+\.\d+\.\d+)$", origin):
+                    major, _, _ = map(int, m.group("version").split("."))
+                    if major < 2:
+                        raise ValueError(f"SoFiA major version is less than 2: {origin}")
+                else:
+                    raise ValueError(f"{clean_mask_file} ORIGIN '{origin}' "
+                                     f"doesn't contain a valid SoFia version")
 
             if clean_mask.ndim > 2:
                 clean_mask = clean_mask[..., 0]
