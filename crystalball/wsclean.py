@@ -136,7 +136,7 @@ def import_from_wsclean(wsclean_comp_list,
                 raise ValueError(f"{clean_mask_file} FITS header "
                                  f"doesn't contain an ORIGIN key")
             else:
-                if m := re.match("^SoFiA (?P<version>\d+\.\d+\.\d+)$", origin):
+                if m := re.match("^SoFiA (?P<version>\\d+\\.\\d+\\.\\d+)$", origin):
                     major, _, _ = map(int, m.group("version").split("."))
                     if major < 2:
                         raise ValueError(f"SoFiA major version is less than 2: {origin}")
@@ -163,21 +163,18 @@ def import_from_wsclean(wsclean_comp_list,
             source_ids = clean_mask[x, y]
             nr_sources = clean_mask.max()
             source_id_range = np.arange(1, nr_sources + 1)
+
             integrated_fluxes = np.array([flux[sid == source_ids].sum() for sid in source_id_range])
+            broadcast_fluxes = integrated_fluxes[source_ids - 1]
 
-            flux_sort_index = np.argsort(integrated_fluxes)[::-1]
-            integrated_fluxes = integrated_fluxes[flux_sort_index]
-            total_flux = integrated_fluxes.sum()
-
-            sorted_ids = source_id_range[flux_sort_index]
-            field_flux_fraction = np.cumsum(integrated_fluxes) / total_flux
-            brightest = sorted_ids[field_flux_fraction <= percent_flux]
-            mask = np.in1d(source_ids, brightest)
-            print(f"Selected {len(brightest)} brightest sources out of {nr_sources} total")
-            print(f"Selected {mask.sum()} components out of {mask.size} total")
-            log.info("Selecting %d brightest sources out of %d total",
-                    len(brightest), len(source_ids))
+            comp_sort_idx = np.lexsort((flux, broadcast_fluxes))[::-1]
+            comp_flux_fraction = np.cumsum(flux[comp_sort_idx]) / flux.sum()
+            mask = comp_sort_idx[comp_flux_fraction <= percent_flux]
             wsclean_comps = {k: v[mask] for k, v in wsclean_comps.items()}
+
+            print(f"Selected {mask.size} components out of {comp_sort_idx.size} total")
+            print("Selecting %d brightest sources out of %d total" %
+                     (np.unique(source_ids[mask]).size, nr_sources))
 
 
     # print if small subset

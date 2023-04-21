@@ -46,7 +46,10 @@ def model_sources():
     return [
         (1, -1, -1),
         (1, -2, 3),
-        (2, 4, 5)]
+        (2, 4, 5),
+        (2, 3, 4),
+        (2, 3, 2),
+        (3, 0, 1)]
 
 
 @pytest.fixture
@@ -91,17 +94,25 @@ def wsclean_model_and_clean_mask(clean_mask_fits_header, model_sources, tmp_path
 
 
 def test_clean_mask(wsclean_model_and_clean_mask):
-    # 2 sources
+    # 3 sources
     # 1: 2 components of 1.0 flux
-    # 2: 1 component of 1.0 flux
+    # 2: 3 component of 1.0 flux
+    # 3: 1 component of 1.0 flux
 
     model_file, clean_file = wsclean_model_and_clean_mask
 
     results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=1.0)
-    assert len(results.source_type) == 3
+    assert len(results.source_type) == 6
 
     results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=0.67)
-    assert len(results.source_type) == 2
+    assert len(results.source_type) == 4
 
     results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=0.66)
+    assert len(results.source_type) == 3
+
+    results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=0.17)
+    assert len(results.source_type) == 1
+
+    # TODO(sjperkins): Perhaps select some components if it's not possible to satisfy
+    results = import_from_wsclean(model_file, clean_mask_file=clean_file, percent_flux=0.16)
     assert len(results.source_type) == 0
