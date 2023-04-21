@@ -45,11 +45,6 @@ jobs:
 
       - name: Run complete test suite
         run: py.test -s -vvv tests/
-      - name: Install crystalball with testing utilities
-        run: pip install .[testing]
-
-      - name: Run complete test suite
-        run: py.test -s -vvv tests/
 
   deploy:
     needs: [test]
