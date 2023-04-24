@@ -9,7 +9,7 @@ from crystalball.wsclean import import_from_wsclean
 
 NAXIS1 = 120
 NAXIS2 = 120
-NAXIS3 = 3
+NAXIS3 = 231
 RESTFRE = 1.42040575177E+09
 
 @pytest.fixture
@@ -36,20 +36,21 @@ def clean_mask_fits_header():
         "CDELT3":   -1.37845719375E+03,
         "CRVAL3":    8.32952108724E+05,
         "ORIGIN":        "SoFiA 2.3.1",
-        "RESTFRE":             RESTFRE,
+        "RESTFREQ":             RESTFRE,
         "EQUINOX":    2.00000000000E+03,
         "BUNIT":                     ""
     }
 
 @pytest.fixture
 def model_sources():
+    # source_id, x-offset, y-offset, z-offset
     return [
-        (1, -1, -1),
-        (1, -2, 3),
-        (2, 4, 5),
-        (2, 3, 4),
-        (2, 3, 2),
-        (3, 0, 1)]
+        (1, -1, -1, 100),
+        (1, -2, 3, 100),
+        (2, 4, 5, 100),
+        (2, 3, 4, -100),
+        (2, 3, 2, -100),
+        (3, 0, 1, -25)]
 
 
 @pytest.fixture
@@ -58,27 +59,30 @@ def wsclean_model_and_clean_mask(clean_mask_fits_header, model_sources, tmp_path
     header = clean_mask_fits_header
     naxes = header["NAXIS"]
     shape = tuple((header[f"NAXIS{ax}"] for ax in range(1, naxes + 1)))
-    cube = np.zeros(shape, dtype=np.int32)
+    cube = np.zeros(tuple(reversed(shape)), dtype=np.int32)
 
     wcs = WCS(clean_mask_fits_header)
 
     half_nax1 = NAXIS1 // 2
     half_nax2 = NAXIS2 // 2
+    half_nax3 = NAXIS3 // 2
 
     lines = [f"Format = Name, Type, Ra, Dec, I, SpectralIndex, "
              f"LogarithmicSI, ReferenceFrequency='{RESTFRE}', "
              f"MajorAxis, MinorAxis, Orientation"]
 
-    for source_id, x, y in model_sources:
-        assert source_id > 0
-        nx = half_nax1 + x
-        ny = half_nax2 + y
-        cube[nx, ny, 0] = source_id
+    for source_id, xoff, yoff, zoff in model_sources:
+        assert source_id > 0, f"{source_id} must be > 0"
+        nx = half_nax1 + xoff
+        ny = half_nax2 + yoff
+        nz = half_nax3 + zoff
+        cube[nz, ny, nx] = source_id
 
-        world = wcs.pixel_to_world(nx, ny, 0)
+        world = wcs.pixel_to_world(nx, ny, nz)
         ra = world[0].ra.to_string(sep=":", unit=u.hour)
         dec = world[0].dec.to_string(sep=".", unit=u.deg)
-        lines.append(f"s0c{source_id},POINT,{ra},{dec},1.0,[0.01,0.01],false,{RESTFRE},,,")
+        freq = world[1].to(u.hertz).value
+        lines.append(f"s0c{source_id},POINT,{ra},{dec},1.0,[0.01,0.01],false,{freq},,,")
 
     wsclean_filename = tmp_path / "model.txt"
 
