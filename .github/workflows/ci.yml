@@ -69,6 +69,18 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Build distributions
+        run: python setup.py sdist bdist_wheel
+
+      - name: Check distributions
+        run: twine check dist/*
+
+      - name: Check source distribution install runs
+        run: pip install dist/*
+
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
       - name: Build source distribution
         run: python -m build --sdist
 

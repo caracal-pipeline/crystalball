@@ -2,9 +2,13 @@
 
 from collections import namedtuple
 import logging
+import re
 
 from africanus.model.wsclean.file_model import load
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, SpectralQuantity
+from astropy.io import fits
+from astropy.wcs import WCS
+import astropy.units as u
 import numpy as np
 
 
@@ -15,8 +19,61 @@ WSCleanModel = namedtuple("WSCleanModel", ["source_type", "radec",
                                            "log_poly", "gauss_shape"])
 
 
-def import_from_wsclean(wsclean_comp_list, include_regions=[],
-                        point_only=False, num=None):
+
+def load_clean_mask(clean_mask_file: str) -> list:
+    """Loads a clean mask file from a FITS file
+
+    Parameters
+    ----------
+    clean_mask_file : str
+        The filename of the clean mask file
+
+    Returns
+    -------
+    header : dict
+        FITS header
+    clean_mask : np.ndarray
+        3D clean mask file of shape (freq, dec, ra)
+    """
+    with fits.open(clean_mask_file) as cmf:
+        header = cmf[0].header
+        clean_mask = cmf[0].data
+
+    try:
+        origin = header["ORIGIN"].strip()
+    except KeyError as e:
+        raise ValueError(f"{clean_mask_file} FITS header "
+                            f"doesn't contain {e} key")
+    else:
+        if m := re.match("^SoFiA (?P<version>\\d+\\.\\d+\\.\\d+)$", origin):
+            major, _, _ = map(int, m.group("version").split("."))
+            if major < 2:
+                raise ValueError(f"SoFiA major version is less than 2: {origin}")
+        else:
+            raise ValueError(f"{clean_mask_file} ORIGIN '{origin}' "
+                                f"doesn't contain a valid SoFia version")
+
+    if int(header["NAXIS"]) != 3:
+        raise ValueError(f"NAXIS {header['NAXIS']} != 3")
+
+    try:
+        assert header["CTYPE1"].strip() == "RA---SIN"
+        assert header["CTYPE2"].strip() == "DEC--SIN"
+        assert header["CTYPE3"].strip() == "VRAD"
+        assert header["CUNIT1"].strip() == "deg"
+        assert header["CUNIT2"].strip() == "deg"
+    except KeyError as e:
+        raise ValueError(f"{clean_mask_file} missing header {e}")
+
+    return header, clean_mask
+
+
+def import_from_wsclean(wsclean_comp_list,
+                        include_regions=None,
+                        point_only=False,
+                        num=None,
+                        clean_mask_file=None,
+                        percent_flux=1.0):
     """
     Imports sources from wsclean, sorted from brightest to faintest.
     If ``include_regions`` is specified only those sources within
@@ -27,15 +84,19 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     ----------
     wsclean_comp_list : str
         wsclean component list file.
-    include_regions : List[:class:`regions.CircleSkyRegion`]
+    include_regions : List[:class:`regions.CircleSkyRegion`], optional
         List of valid region's. Only sources within these regions
         will be loaded.
-        Defaults to ``[]`` in which case, all sources are loaded.
+        Defaults to ``None`` in which case, all sources are loaded.
     point_only : bool, optional
         Only include point sources. Defaults to False
     num :  integer, optional
         Number of sources to include.
         If ``None`` all sources are returned.
+    clean_mask_file : str, optional
+        Clean mask file.
+    percent_flux : float
+        Percent of flux to include with each source
 
     Returns
     -------
@@ -113,6 +174,44 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
         wsclean_comps = {key: value[:num] for key, value
                          in wsclean_comps.items()}
         log.info("Selecting up %d brightest sources", num)
+
+    if clean_mask_file:
+        header, clean_mask = load_clean_mask(clean_mask_file)
+        wcs = WCS(header)
+
+        ra = np.rad2deg(wsclean_comps["Ra"]) * u.rad
+        dec = np.rad2deg(wsclean_comps["Dec"]) * u.rad
+        flux = wsclean_comps["I"]
+
+        freq = SpectralQuantity(wsclean_comps["ReferenceFrequency"] * u.Hz,
+                                doppler_rest=wcs.wcs.restfrq * u.Hz,
+                                doppler_convention="radio")
+        x, y, z = wcs.wcs_world2pix(ra, dec, freq.to(u.m/u.s), 0)
+        x, y, z = np.rint([x, y, z]).astype(int)
+
+        log.info("Grouping sources by id's in %s", clean_mask_file)
+
+        source_ids = clean_mask[z, y, x]
+
+        if(np.any(source_ids == 0)):
+            mask = np.where(source_ids == 0)[0]
+            raise ValueError(f"Unable to register sources {wsclean_comps['Name'][mask]}")
+
+        nr_sources = clean_mask.max()
+        source_id_range = np.arange(1, nr_sources + 1)
+
+        integrated_fluxes = np.array([flux[sid == source_ids].sum() for sid in source_id_range])
+        broadcast_fluxes = integrated_fluxes[source_ids - 1]
+
+        comp_sort_idx = np.lexsort((flux, broadcast_fluxes))[::-1]
+        comp_flux_fraction = np.cumsum(flux[comp_sort_idx]) / flux.sum()
+        mask = comp_sort_idx[comp_flux_fraction <= percent_flux]
+        wsclean_comps = {k: v[mask] for k, v in wsclean_comps.items()}
+
+        log.info("Selecting %d components out of %d total", mask.size, comp_sort_idx.size)
+        log.info("Secting %d brightest sources out of %d total",
+                 np.unique(source_ids[mask]).size, nr_sources)
+
 
     # print if small subset
     if (num is not None and num < 100) or include_regions:
