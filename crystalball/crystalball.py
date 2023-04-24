@@ -7,6 +7,7 @@ import warnings
 
 from dask.array import PerformanceWarning
 from loguru import logger as log
+import psutil
 import sys
 
 
@@ -25,7 +26,7 @@ from africanus.util.dask_util import EstimatingProgressBar
 from africanus.util.requirements import requires_optional
 
 import crystalball.logger_init  # noqa
-from crystalball.budget import get_budget
+from crystalball.budget import get_budget, budget
 from crystalball.filtering import select_field_id, filter_datasets
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
@@ -188,11 +189,20 @@ def _predict(args):
 
     # Perform resource budgeting
     nsources = source_model.source_type.shape[0]
-    args.row_chunks, args.model_chunks = get_budget(nsources,
-                                                    ms_rows,
-                                                    max_num_chan,
-                                                    max_num_corr,
-                                                    ms_datatype, args)
+
+    if nsources == 0:
+        log.error(f"No sources were found in {args.sky_model}")
+        sys.exit(1)
+
+
+    args.row_chunks, args.model_chunks = budget(
+        ms_datatype,
+        nsources,
+        ms_rows,
+        max_num_chan,
+        max_num_corr,
+        psutil.virtual_memory()[0],
+        args.num_workers or psutil.cpu_count())
 
     source_model = source_model_to_dask(source_model, args.model_chunks)
 
