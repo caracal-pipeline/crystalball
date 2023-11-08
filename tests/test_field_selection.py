@@ -10,7 +10,7 @@ def test_select_field():
     datasets = []
 
     for field_name in ["DEEP2"]:
-        name = np.asarray([field_name], dtype=np.object)
+        name = np.asarray([field_name], dtype=object)
         ds = Dataset({"NAME": (("row",), da.from_array(name, chunks=1))})
         datasets.append(ds)
 
@@ -20,7 +20,7 @@ def test_select_field():
     datasets = []
 
     for field_name in ["PKS-1934", "3C286", "DEEP2"]:
-        name = np.asarray([field_name], dtype=np.object)
+        name = np.asarray([field_name], dtype=object)
         ds = Dataset({"NAME": (("row",), da.from_array(name, chunks=1))})
         datasets.append(ds)
 
