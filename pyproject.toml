@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "crystalball"
+version = "0.4.1"
+description = "Predicts visibilities from a parameterised sky model"
+authors = ["Paolo Serra and others"]
+license = "GPLv2"
+readme = "README.rst"
+packages = [{include = "crystalball"}]
+
+[tool.poetry.scripts]
+crystalball = "crystalball.crystalball:predict"
+
+[tool.poetry.dependencies]
+python = "^3.10,<3.13"
+dask-ms = "^0.2.23"
+loguru = "^0.7.3"
+codex-africanus = "^0.4.1"
+psutil = "^6.1.0"
+regions = ">0.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
