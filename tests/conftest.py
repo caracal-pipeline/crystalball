@@ -85,7 +85,7 @@ def tart_ms_tarfile(tmp_path_factory):
     msdir = tmp_path_factory.mktemp("tartms")
 
     with tarfile.open(tart_ms_tar) as tar:
-        tar.extractall(msdir)
+        tar.extractall(msdir, filter="fully_trusted")
 
     yield str(msdir / TART_MS)
 
