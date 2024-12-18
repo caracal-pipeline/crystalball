@@ -8,6 +8,7 @@ import sys
 import warnings
 from contextlib import ExitStack
 from importlib.metadata import version
+from time import time
 
 import dask
 import dask.array as da
@@ -17,7 +18,7 @@ from africanus.util.dask_util import EstimatingProgressBar
 from africanus.util.requirements import requires_optional
 from dask import compute
 from dask.array import PerformanceWarning
-from dask.distributed import Client
+from dask.distributed import Client, progress
 from daskms import xds_from_ms, xds_from_table, xds_to_table
 from loguru import logger as log
 
@@ -296,6 +297,7 @@ def predict(
         # Add to the list of writes
         writes.append(write)
 
+    tick = time()
     with ExitStack() as stack:
         if sys.stdout.isatty():
             # Default progress bar in user terminal
@@ -306,8 +308,20 @@ def predict(
 
         # Submit all graph computations in parallel
         if client is not None:
-            client.compute(writes)
+            future_list = client.compute(writes)
+            progress(future_list)
         else:
             dask.compute(writes)
+
+    tock = time()
+    time_taken = tock - tick
+    time_unit = "sec"
+    if time_taken > 60:
+        time_taken /= 60
+        time_unit = "min"
+    if time_taken > 60:
+        time_taken /= 60
+        time_unit = "hr"
+    log.info(f"Elapsed time: {time_taken:0.1f} {time_unit}")
 
     log.info("Finished")

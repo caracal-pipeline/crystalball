@@ -94,15 +94,18 @@ def get_budget_from_client(
 
     workers = info.get("workers", {})
     nworkers = len(workers)
-    nrthreads = sum(w["nthreads"] for w in workers.values())
-    systmem = sum([w["memory_limit"] for w in workers.values()])
+    total_threads = sum(w["nthreads"] for w in workers.values())
+    total_mem = sum([w["memory_limit"] for w in workers.values()])
+    systmem = total_mem / total_threads
+    nrthreads = total_threads // nworkers
 
     log.info("-" * 50)
     log.info("Budgeting")
     log.info("-" * 50)
-    log.info("system RAM = {0:.2f} GB", systmem / 1024**3)
+    log.info("Total RAM = {0:.2f} GB", total_mem / 1024**3)
+    log.info("RAM / thread = {0:.2f} GB", systmem / 1024**3)
     log.info("nr of dask workers = {0:d}", nworkers)
-    log.info("nr of logical CPUs = {0:d}", nrthreads)
+    log.info("nr of threads / worker = {0:d}", nrthreads)
     log.info("nr sources = {0:d}", nr_sources)
     log.info("nr rows    = {0:d}", nr_rows)
     log.info("nr chans   = {0:d}", nr_chans)
