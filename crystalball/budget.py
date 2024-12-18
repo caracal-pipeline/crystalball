@@ -1,15 +1,28 @@
+from __future__ import annotations
+
 from loguru import logger as log
 import psutil
 import numpy as np
 
 
-def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
-               fudge_factor=1.25, row2source_ratio=100):
+def get_budget(
+        nr_sources, 
+        nr_rows, 
+        nr_chans, 
+        nr_corrs, 
+        data_type, 
+        num_workers: int | None = None,
+        model_chunks: int = 0,
+        row_chunks: int = 0,
+        memory_fraction: float = 0.1,
+        fudge_factor=1.25, 
+        row2source_ratio=100
+):
     systmem = float(psutil.virtual_memory()[0])
-    if not cb_args.num_workers:
+    if not num_workers:
         nrthreads = psutil.cpu_count()
     else:
-        nrthreads = cb_args.num_workers
+        nrthreads = num_workers
 
     log.info('-' * 50)
     log.info('Budgeting')
@@ -26,18 +39,18 @@ def get_budget(nr_sources, nr_rows, nr_chans, nr_corrs, data_type, cb_args,
     bytes_per_row = nr_chans * nr_corrs * data_bytes
     memory_per_row = bytes_per_row * fudge_factor
 
-    if cb_args.model_chunks and cb_args.row_chunks:
-        rows_per_chunk = cb_args.row_chunks
-        sources_per_chunk = cb_args.model_chunks
+    if model_chunks and row_chunks:
+        rows_per_chunk = row_chunks
+        sources_per_chunk = model_chunks
         strat_type = "(user settings)"
-    elif not cb_args.model_chunks and not cb_args.row_chunks:
+    elif not model_chunks and not row_chunks:
 
-        if cb_args.memory_fraction > 1 or cb_args.memory_fraction <= 0:
+        if memory_fraction > 1 or memory_fraction <= 0:
             raise ValueError('The memory fraction must be a number in the '
                              'interval (0,1]. You have set it to {0:f} '
-                             '.'.format(cb_args.memory_fraction))
+                             '.'.format(memory_fraction))
 
-        allowed_rows_per_thread = (systmem * cb_args.memory_fraction /
+        allowed_rows_per_thread = (systmem * memory_fraction /
                                    (memory_per_row * nrthreads))
         rows_per_chunk = int(min(nr_rows, allowed_rows_per_thread))
         sources_per_chunk = int(min(nr_sources,

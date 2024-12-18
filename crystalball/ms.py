@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 
 import logging
 
-import pyrap.tables as pt
+import casacore.tables as pt
 
 log = logging.getLogger(__name__)
 
 
-def ms_preprocess(args):
+def ms_preprocess(
+        ms_name: str,
+        output_column: str = "CORRECTED_DATA",
+):
     """
     Adds output column if missing.
 
@@ -18,18 +22,18 @@ def ms_preprocess(args):
     """
 
     # check output column
-    with pt.table(args.ms, readonly=False) as ms:
+    with pt.table(ms_name, readonly=False) as ms:
         # Return if nothing todo
-        if args.output_column in ms.colnames():
+        if output_column in ms.colnames():
             return ms.nrows(), ms.coldatatype('DATA')
 
-        log.info('inserting new column %s', args.output_column)
+        log.info('inserting new column %s', output_column)
         desc = ms.getcoldesc("DATA")
-        desc['name'] = args.output_column
+        desc['name'] = output_column
         # python version hates spaces, who knows why
         desc['comment'] = desc['comment'].replace(" ", "_")
         dminfo = ms.getdminfo("DATA")
-        dminfo["NAME"] = "%s-%s" % (dminfo["NAME"], args.output_column)
+        dminfo["NAME"] = "%s-%s" % (dminfo["NAME"], output_column)
         ms.addcols(desc, dminfo)
 
         return ms.nrows(), ms.coldatatype('DATA')
