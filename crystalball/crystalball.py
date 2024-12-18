@@ -15,12 +15,14 @@ from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
 from africanus.util.dask_util import EstimatingProgressBar
 from africanus.util.requirements import requires_optional
+from dask import compute
 from dask.array import PerformanceWarning
+from dask.distributed import Client
 from daskms import xds_from_ms, xds_from_table, xds_to_table
 from loguru import logger as log
 
 import crystalball.logger_init  # noqa
-from crystalball.budget import get_budget
+from crystalball.budget import get_budget, get_budget_from_client
 from crystalball.filtering import filter_datasets, select_field_id
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
@@ -174,6 +176,7 @@ def predict(
         num_sources: int = 0,
         num_workers: int = 0,
         memory_fraction: float = 0.1,
+        client: Client | None = None
 ):
     pkg_version = version("crystalball")
     log.info(f"Crystalball version {pkg_version}")
@@ -212,17 +215,30 @@ def predict(
 
     # Perform resource budgeting
     nsources = source_model.source_type.shape[0]
-    row_chunks, model_chunks = get_budget(
-        nr_sources=nsources,
-        nr_rows=ms_rows, 
-        nr_chans=max_num_chan, 
-        nr_corrs=max_num_corr, 
-        data_type=ms_datatype, 
-        num_workers=num_workers,
-        model_chunks=model_chunks,
-        row_chunks=row_chunks,
-        memory_fraction=memory_fraction
-    )
+    if client is not None:
+        row_chunks, model_chunks = get_budget_from_client(
+            nr_sources=nsources,
+            nr_rows=ms_rows, 
+            nr_chans=max_num_chan, 
+            nr_corrs=max_num_corr, 
+            data_type=ms_datatype, 
+            client=client,
+            model_chunks=model_chunks,
+            row_chunks=row_chunks,
+            memory_fraction=memory_fraction
+        )
+    else:
+        row_chunks, model_chunks = get_budget(
+            nr_sources=nsources,
+            nr_rows=ms_rows, 
+            nr_chans=max_num_chan, 
+            nr_corrs=max_num_corr, 
+            data_type=ms_datatype, 
+            num_workers=num_workers,
+            model_chunks=model_chunks,
+            row_chunks=row_chunks,
+            memory_fraction=memory_fraction
+        )
 
     source_model = source_model_to_dask(source_model, model_chunks)
 
@@ -289,6 +305,9 @@ def predict(
             stack.enter_context(EstimatingProgressBar(minimum=2 * 60, dt=5))
 
         # Submit all graph computations in parallel
-        dask.compute(writes)
+        if client is not None:
+            client.compute(writes)
+        else:
+            dask.compute(writes)
 
     log.info("Finished")
