@@ -1,35 +1,30 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 import argparse
-from contextlib import ExitStack
-import warnings
-
-from dask.array import PerformanceWarning
-from loguru import logger as log
 import sys
+import warnings
+from contextlib import ExitStack
+from importlib.metadata import version
 
-
-try:
-    import dask
-    import dask.array as da
-    from daskms import xds_from_ms, xds_from_table, xds_to_table
-except ImportError as e:
-    opt_import_error = e
-else:
-    opt_import_error = None
-
+import dask
+import dask.array as da
 from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
 from africanus.util.dask_util import EstimatingProgressBar
 from africanus.util.requirements import requires_optional
+from dask.array import PerformanceWarning
+from daskms import xds_from_ms, xds_from_table, xds_to_table
+from loguru import logger as log
 
 import crystalball.logger_init  # noqa
 from crystalball.budget import get_budget
-from crystalball.filtering import select_field_id, filter_datasets
+from crystalball.filtering import filter_datasets, select_field_id
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
-from crystalball.wsclean import import_from_wsclean, WSCleanModel
+from crystalball.wsclean import WSCleanModel, import_from_wsclean
 
 
 def create_parser():
@@ -70,7 +65,7 @@ def create_parser():
     return p
 
 
-def support_tables(args, tables):
+def support_tables(ms, tables):
     """
     Parameters
     ----------
@@ -85,7 +80,7 @@ def support_tables(args, tables):
         {name: dataset}
     """
     return {t: [ds.compute() for ds in
-                xds_from_table("::".join((args.ms, t)),
+                xds_from_table("::".join((ms, t)),
                                group_cols="__row__")]
             for t in tables}
 
@@ -142,7 +137,7 @@ def source_model_to_dask(source_model, chunks):
                         da.from_array(sm.gauss_shape, chunks=gauss_chunks))
 
 
-def predict():
+def predict_cli():
     # Parse application args
     args = create_parser().parse_args([a for a in sys.argv[1:]])
 
@@ -152,31 +147,60 @@ def predict():
             stack.enter_context(dask.config.set(num_workers=args.num_workers))
 
         # Run application script
-        return _predict(args)
+        return predict(
+            ms=args.ms,
+            sky_model=args.sky_model,
+            output_column=args.output_column,
+            field=args.field,
+            row_chunks=args.row_chunks,
+            model_chunks=args.model_chunks,
+            within=args.within,
+            points_only=args.points_only,
+            num_sources=args.num_sources,
+            num_workers=args.num_workers,
+            memory_fraction=args.memory_fraction
+        )
 
 
-@requires_optional("dask.array", "daskms", opt_import_error)
-def _predict(args):
-    from importlib.metadata import version
+def predict(
+        ms: str,
+        sky_model: str = "sky-model.txt",
+        output_column: str = "MODEL_DATA",
+        field: str | None = None,
+        row_chunks: int = 0,
+        model_chunks: int = 0,
+        within: str | None = None,
+        points_only: bool = False,
+        num_sources: int = 0,
+        num_workers: int = 0,
+        memory_fraction: float = 0.1,
+):
     pkg_version = version("crystalball")
     log.info(f"Crystalball version {pkg_version}")
 
     # get inclusion regions
-    include_regions = load_regions(args.within) if args.within else []
+    include_regions = load_regions(within) if within else []
 
     # Import source data from WSClean component list
-    # See https://sourceforge.net/p/wsclean/wiki/ComponentList
-    source_model = import_from_wsclean(args.sky_model,
-                                       include_regions=include_regions,
-                                       point_only=args.points_only,
-                                       num=args.num_sources or None)
+    # See https://wsclean.readthedocs.io/en/latest/component_list.html
+    source_model = import_from_wsclean(
+        sky_model,
+        include_regions=include_regions,
+        point_only=points_only,
+        num=num_sources or None
+    )
 
     # Add output column if it isn't present
-    ms_rows, ms_datatype = ms_preprocess(args)
+    ms_rows, ms_datatype = ms_preprocess(
+        ms_name=ms,
+        output_column=output_column
+    )
 
     # Get the support tables
-    tables = support_tables(args, ["FIELD", "DATA_DESCRIPTION",
-                                   "SPECTRAL_WINDOW", "POLARIZATION"])
+    tables = support_tables(
+        ms=ms, 
+        tables=["FIELD", "DATA_DESCRIPTION", "SPECTRAL_WINDOW", "POLARIZATION"]
+    )
 
     field_ds = tables["FIELD"]
     ddid_ds = tables["DATA_DESCRIPTION"]
@@ -188,23 +212,31 @@ def _predict(args):
 
     # Perform resource budgeting
     nsources = source_model.source_type.shape[0]
-    args.row_chunks, args.model_chunks = get_budget(nsources,
-                                                    ms_rows,
-                                                    max_num_chan,
-                                                    max_num_corr,
-                                                    ms_datatype, args)
+    row_chunks, model_chunks = get_budget(
+        nr_sources=nsources,
+        nr_rows=ms_rows, 
+        nr_chans=max_num_chan, 
+        nr_corrs=max_num_corr, 
+        data_type=ms_datatype, 
+        num_workers=num_workers,
+        model_chunks=model_chunks,
+        row_chunks=row_chunks,
+        memory_fraction=memory_fraction
+    )
 
-    source_model = source_model_to_dask(source_model, args.model_chunks)
+    source_model = source_model_to_dask(source_model, model_chunks)
 
     # List of write operations
     writes = []
 
-    datasets = xds_from_ms(args.ms,
-                           columns=["UVW", "ANTENNA1", "ANTENNA2", "TIME"],
-                           group_cols=["FIELD_ID", "DATA_DESC_ID"],
-                           chunks={"row": args.row_chunks})
+    datasets = xds_from_ms(
+        ms,
+        columns=["UVW", "ANTENNA1", "ANTENNA2", "TIME"],
+        group_cols=["FIELD_ID", "DATA_DESC_ID"],
+        chunks={"row": row_chunks}
+    )
 
-    field_id = select_field_id(field_ds, args.field)
+    field_id = select_field_id(field_ds, field)
 
     for xds in filter_datasets(datasets, field_id):
         # Extract frequencies from the spectral window associated
@@ -221,15 +253,17 @@ def _predict(args):
             # Ignore dask chunk warnings emitted when going from 1D
             # inputs to a 2D space of chunks
             warnings.simplefilter('ignore', category=PerformanceWarning)
-            vis = wsclean_predict(xds.UVW.data,
-                                  lm,
-                                  source_model.source_type,
-                                  source_model.flux,
-                                  source_model.spi,
-                                  source_model.log_poly,
-                                  source_model.ref_freq,
-                                  source_model.gauss_shape,
-                                  frequency)
+            vis = wsclean_predict(
+                xds.UVW.data,
+                lm,
+                source_model.source_type,
+                source_model.flux,
+                source_model.spi,
+                source_model.log_poly,
+                source_model.ref_freq,
+                source_model.gauss_shape,
+                frequency
+            )
 
         vis = fill_correlations(vis, pol)
 
@@ -240,9 +274,9 @@ def _predict(args):
 
         # Assign visibilities to MODEL_DATA array on the dataset
         xds = xds.assign(
-            **{args.output_column: (("row", "chan", "corr"), vis)})
+            **{output_column: (("row", "chan", "corr"), vis)})
         # Create a write to the table
-        write = xds_to_table(xds, args.ms, [args.output_column])
+        write = xds_to_table(xds, ms, [output_column])
         # Add to the list of writes
         writes.append(write)
 
