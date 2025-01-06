@@ -8,7 +8,7 @@ readme = "README.rst"
 packages = [{include = "crystalball"}]
 
 [tool.poetry.scripts]
-crystalball = "crystalball.crystalball:predict"
+crystalball = "crystalball.crystalball:predict_cli"
 
 [tool.poetry.dependencies]
 python = "^3.10,<3.13"
