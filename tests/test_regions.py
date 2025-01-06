@@ -1,5 +1,5 @@
-from astropy.coordinates import SkyCoord, Angle
 import astropy.units as units
+from astropy.coordinates import Angle, SkyCoord
 
 from crystalball.region import load_regions
 

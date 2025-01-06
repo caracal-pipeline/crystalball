@@ -1,8 +1,8 @@
 import dask.array as da
 import numpy as np
 import pytest
-
 from daskms import Dataset
+
 from crystalball.filtering import select_field_id
 
 

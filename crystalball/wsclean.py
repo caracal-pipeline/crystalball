@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from collections import namedtuple
 import logging
+from collections import namedtuple
 
+import numpy as np
 from africanus.model.wsclean.file_model import load
 from astropy.coordinates import SkyCoord
-import numpy as np
-
 
 log = logging.getLogger(__name__)
 

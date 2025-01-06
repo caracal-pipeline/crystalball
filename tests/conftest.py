@@ -1,13 +1,13 @@
-from contextlib import ExitStack
-from hashlib import sha256
 import logging
-from pathlib import Path
+import tarfile
 import urllib
 import urllib.request
-import tarfile
+from contextlib import ExitStack
+from hashlib import sha256
+from pathlib import Path
 
-from appdirs import user_cache_dir
 import pytest
+from appdirs import user_cache_dir
 
 log = logging.getLogger(__file__)
 
