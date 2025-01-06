@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from loguru import logger as log
-import psutil
 import numpy as np
 import psutil
 from dask.distributed import Client
