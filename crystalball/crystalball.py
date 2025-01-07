@@ -4,22 +4,23 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import warnings
 from contextlib import ExitStack
 from importlib.metadata import version
 from time import time
+from typing import Literal
 
 import dask
 import dask.array as da
 from africanus.coordinates.dask import radec_to_lm
 from africanus.rime.dask import wsclean_predict
 from africanus.util.dask_util import EstimatingProgressBar
-from africanus.util.requirements import requires_optional
-from dask import compute
 from dask.array import PerformanceWarning
 from dask.distributed import Client, progress
 from daskms import xds_from_ms, xds_from_table, xds_to_table
+from distributed import LocalCluster
 from loguru import logger as log
 
 import crystalball.logger_init  # noqa
@@ -58,12 +59,22 @@ def create_parser():
                    help="Select only point-type sources.")
     p.add_argument("-ns", "--num-sources", type=int, default=0, metavar="N",
                    help="Select only N brightest sources.")
-    p.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
-                   help="Explicitly set the number of worker threads.")
     p.add_argument("-mf", "--memory-fraction", type=float, default=0.1,
                    help="Fraction of system RAM that can be used. "
                         "Used when setting automatically the "
                         "chunk size. Default in 0.1.")
+    
+    dask_group = p.add_argument_group("Dask options")
+    dask_group.add_argument("-j", "--num-workers", type=int, default=0, metavar="N",
+                            help="Explicitly set the number of worker threads.")
+    dask_group.add_argument(
+        "--scheduler",
+        type=str,
+        choices=["threads", "distributed"],
+        help="Dask scheduler type.",
+        default="threads",
+    )
+    dask_group.add_argument("--address", type=str, help="Dask scheduler address.", default=None)
 
     return p
 
@@ -139,16 +150,62 @@ def source_model_to_dask(source_model, chunks):
                         da.from_array(sm.log_poly, chunks=chunks),
                         da.from_array(sm.gauss_shape, chunks=gauss_chunks))
 
+def construct_client(
+    exitstack: ExitStack,
+    num_workers: int = 0,
+    scheduler: Literal["threads", "distributed"] = "threads",
+    address: str | None = None,
+    workers: int = 1,
+) -> Client:
+    
+    if scheduler not in ["threads", "distributed"]:
+        raise ValueError(f"Unknown scheduler type: {scheduler}")
+    
+    # Following Quartical's constuction of a dask client
+    if scheduler == "threads":
+        log.info("Initializing dask client using threads scheduler.")
+        return exitstack.enter_context(Client(n_workers=num_workers))
+    
+    address = address or os.environ.get("DASK_SCHEDULER_ADDRESS")
+    if address:
+        log.info(
+            f"Initializing distributed client using scheduler address: "
+            f"{address}"
+        )
+        client = exitstack.enter_context(Client(address))
+
+    else:
+        log.info("Initializing distributed client using LocalCluster.")
+        cluster = LocalCluster(
+            processes=workers > 1,
+            n_workers=workers,
+            threads_per_worker=num_workers,
+            memory_limit=0,
+        )
+        cluster = exitstack.enter_context(cluster)
+        client = exitstack.enter_context(Client(cluster))
+
+    client.wait_for_workers(workers)
+
+    log.info("Distributed client sucessfully initialized.")
+    return client
+
+
+
 
 def predict_cli():
     # Parse application args
     args = create_parser().parse_args([a for a in sys.argv[1:]])
 
     with ExitStack() as stack:
-        # Set up dask ThreadPool prior to any application dask calls
-        if args.num_workers:
-            stack.enter_context(dask.config.set(num_workers=args.num_workers))
-
+        # Set up dask client
+        client = construct_client(
+            stack,
+            num_workers=args.num_workers,
+            scheduler=args.scheduler,
+            address=args.address,
+            workers=1,
+        )
         # Run application script
         return predict(
             ms=args.ms,
@@ -161,7 +218,8 @@ def predict_cli():
             points_only=args.points_only,
             num_sources=args.num_sources,
             num_workers=args.num_workers,
-            memory_fraction=args.memory_fraction
+            memory_fraction=args.memory_fraction,
+            client=client,
         )
 
 
