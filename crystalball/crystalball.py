@@ -24,7 +24,7 @@ from distributed import LocalCluster
 from loguru import logger as log
 
 import crystalball.logger_init  # noqa
-from crystalball.budget import get_budget, get_budget_from_client
+from crystalball.budget import get_budget
 from crystalball.filtering import filter_datasets, select_field_id
 from crystalball.ms import ms_preprocess
 from crystalball.region import load_regions
@@ -274,30 +274,18 @@ def predict(
 
     # Perform resource budgeting
     nsources = source_model.source_type.shape[0]
-    if client is not None:
-        row_chunks, model_chunks = get_budget_from_client(
-            nr_sources=nsources,
-            nr_rows=ms_rows, 
-            nr_chans=max_num_chan, 
-            nr_corrs=max_num_corr, 
-            data_type=ms_datatype, 
-            client=client,
-            model_chunks=model_chunks,
-            row_chunks=row_chunks,
-            memory_fraction=memory_fraction
-        )
-    else:
-        row_chunks, model_chunks = get_budget(
-            nr_sources=nsources,
-            nr_rows=ms_rows, 
-            nr_chans=max_num_chan, 
-            nr_corrs=max_num_corr, 
-            data_type=ms_datatype, 
-            num_workers=num_workers,
-            model_chunks=model_chunks,
-            row_chunks=row_chunks,
-            memory_fraction=memory_fraction
-        )
+    row_chunks, model_chunks = get_budget(
+        nr_sources=nsources,
+        nr_rows=ms_rows, 
+        nr_chans=max_num_chan, 
+        nr_corrs=max_num_corr, 
+        data_type=ms_datatype, 
+        num_workers=num_workers,
+        model_chunks=model_chunks,
+        row_chunks=row_chunks,
+        memory_fraction=memory_fraction,
+        client=client,
+    )
 
     source_model = source_model_to_dask(source_model, model_chunks)
 
