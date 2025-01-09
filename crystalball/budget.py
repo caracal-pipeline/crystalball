@@ -1,41 +1,108 @@
 from __future__ import annotations
+from typing import Literal
 
-from loguru import logger as log
-import psutil
 import numpy as np
+import psutil
+from dask.distributed import Client
+from loguru import logger as log
 
 
 def get_budget(
-        nr_sources, 
-        nr_rows, 
-        nr_chans, 
-        nr_corrs, 
-        data_type, 
+        nr_sources: int,
+        nr_rows: int,
+        nr_chans: int,
+        nr_corrs: int,
+        data_type: Literal["complex", "dcomplex"] = "complex", 
         num_workers: int | None = None,
         model_chunks: int = 0,
         row_chunks: int = 0,
         memory_fraction: float = 0.1,
         fudge_factor=1.25, 
-        row2source_ratio=100
-):
-    systmem = float(psutil.virtual_memory()[0])
-    if not num_workers:
-        nrthreads = psutil.cpu_count()
-    else:
-        nrthreads = num_workers
+        row2source_ratio=100,
+        client: Client | None = None,
+) -> tuple[int, int]:
+    """Compute the appropriate chunk sizes for the model and data.
 
-    log.info('-' * 50)
-    log.info('Budgeting')
-    log.info('-' * 50)
-    log.info('system RAM = {0:.2f} GB', systmem / 1024**3)
-    log.info('nr of logical CPUs = {0:d}', nrthreads)
+    Parameters
+    ----------
+    nr_sources : int
+        Number of sources in the model.
+    nr_rows : int
+        Number of rows in the visibilities.
+    nr_chans : int
+        Number of channels in the visibilities.
+    nr_corrs : int
+        Number of polarizations in the visibilities.
+    data_type : Literal["complex", "dcomplex"], optional
+        Data type, by default "complex"
+    num_workers : int | None, optional
+        Number of workers, by default None
+    model_chunks : int, optional
+        Number of model chunks, by default 0
+    row_chunks : int, optional
+        Number of row chunks, by default 0
+    memory_fraction : float, optional
+        Fraction of memory to use, by default 0.1
+    fudge_factor : float, optional
+        Padding factor for memory, by default 1.25
+    row2source_ratio : int, optional
+        Rows per source in chunk, by default 100
+    client : Client | None, optional
+        Dask client in use, by default None
+
+    Returns
+    -------
+    tuple[int, int]
+        rows_per_chunk, sources_per_chunk
+
+    Raises
+    ------
+    ValueError
+        If the memory fraction is not in the interval (0,1]
+    ValueError
+        If only one of the row or source chunk is set
+    ValueError
+        If the scheduler address cannot be found
+    """    
+    log.info("-" * 50)
+    log.info("Budgeting")
+    log.info("-" * 50)
+
+    if client is not None:
+        info = client.scheduler_info()
+        addr = info.get("address")
+        if addr is None:
+            msg = f"Cannot get the scheduler address {client=}"
+            raise ValueError(msg)
+
+        workers = info.get("workers", {})
+        nworkers = len(workers)
+        total_threads = sum(w["nthreads"] for w in workers.values())
+        total_mem = sum([w["memory_limit"] for w in workers.values()])
+        systmem = total_mem / total_threads
+        nrthreads = total_threads // nworkers
+
+        log.info("Total RAM = {0:.2f} GB", total_mem / 1024**3)
+        log.info("RAM / thread = {0:.2f} GB", systmem / 1024**3)
+        log.info("nr of dask workers = {0:d}", nworkers)
+        log.info("nr of threads / worker = {0:d}", nrthreads)
+
+    else:
+        systmem = float(psutil.virtual_memory()[0])
+        if not num_workers:
+            nrthreads = psutil.cpu_count()
+        else:
+            nrthreads = num_workers
+        log.info('system RAM = {0:.2f} GB', systmem / 1024**3)
+        log.info('nr of logical CPUs = {0:d}', nrthreads)
+
     log.info('nr sources = {0:d}', nr_sources)
     log.info('nr rows    = {0:d}', nr_rows)
     log.info('nr chans   = {0:d}', nr_chans)
     log.info('nr corrs   = {0:d}', nr_corrs)
 
-    data_type = {'complex': 'complex64', 'dcomplex': 'complex128'}[data_type]
-    data_bytes = np.dtype(data_type).itemsize
+    data_type_str = {'complex': 'complex64', 'dcomplex': 'complex128'}[data_type]
+    data_bytes = np.dtype(data_type_str).itemsize
     bytes_per_row = nr_chans * nr_corrs * data_bytes
     memory_per_row = bytes_per_row * fudge_factor
 
