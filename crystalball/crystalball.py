@@ -157,15 +157,16 @@ def construct_client(
     address: str | None = None,
     workers: int = 1,
 ) -> Client:
-    
+
     if scheduler not in ["threads", "distributed"]:
         raise ValueError(f"Unknown scheduler type: {scheduler}")
-    
+
     # Following Quartical's constuction of a dask client
     if scheduler == "threads":
         log.info("Initializing dask client using threads scheduler.")
-        return exitstack.enter_context(Client(n_workers=num_workers))
-    
+        exitstack.enter_context(dask.config.set(num_workers=num_workers))
+        return None
+
     address = address or os.environ.get("DASK_SCHEDULER_ADDRESS")
     if address:
         log.info(
