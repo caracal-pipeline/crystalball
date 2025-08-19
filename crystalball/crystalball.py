@@ -236,7 +236,8 @@ def predict(
         num_sources: int = 0,
         num_workers: int = 0,
         memory_fraction: float = 0.1,
-        client: Client | None = None
+        client: Client | None = None,
+        return_delayed: bool = False,
 ):
     pkg_version = version("crystalball")
     log.info(f"Crystalball version {pkg_version}")
@@ -354,6 +355,8 @@ def predict(
             stack.enter_context(EstimatingProgressBar(minimum=2 * 60, dt=5))
 
         # Submit all graph computations in parallel
+        if return_delayed:
+            return writes
         if client is not None:
             future_list = client.compute(writes)
             progress(future_list)
