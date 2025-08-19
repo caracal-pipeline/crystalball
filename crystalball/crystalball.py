@@ -367,7 +367,7 @@ def predict(
         field=field,
         row_chunks=row_chunks,
         model_chunks=model_chunks,
-        witin=within,
+        within=within,
         points_only=points_only,
         num_sources=num_sources,
         num_worker=num_workers,
