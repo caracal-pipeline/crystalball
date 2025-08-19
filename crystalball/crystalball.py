@@ -31,7 +31,7 @@ from crystalball.region import load_regions
 from crystalball.wsclean import WSCleanModel, import_from_wsclean
 
 
-def create_parser():
+def create_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("ms",
                    help="Input .MS file.")
@@ -224,7 +224,7 @@ def predict_cli():
         )
 
 
-def predict(
+def create_predict_graph(
         ms: str,
         sky_model: str = "sky-model.txt",
         output_column: str = "MODEL_DATA",
@@ -236,7 +236,7 @@ def predict(
         num_sources: int = 0,
         num_workers: int = 0,
         memory_fraction: float = 0.1,
-        client: Client | None = None
+        client: Client | None = None,
 ):
     pkg_version = version("crystalball")
     log.info(f"Crystalball version {pkg_version}")
@@ -343,6 +343,38 @@ def predict(
         write = xds_to_table(xds, ms, [output_column])
         # Add to the list of writes
         writes.append(write)
+
+    return writes
+
+def predict(
+        ms: str,
+        sky_model: str = "sky-model.txt",
+        output_column: str = "MODEL_DATA",
+        field: str | None = None,
+        row_chunks: int = 0,
+        model_chunks: int = 0,
+        within: str | None = None,
+        points_only: bool = False,
+        num_sources: int = 0,
+        num_workers: int = 0,
+        memory_fraction: float = 0.1,
+        client: Client | None = None,
+):
+    
+    writes = create_predict_graph(
+         ms=ms,
+        sky_model=sky_model,
+        output_column=output_column,
+        field=field,
+        row_chunks=row_chunks,
+        model_chunks=model_chunks,
+        within=within,
+        points_only=points_only,
+        num_sources=num_sources,
+        num_workers=num_workers,
+        memory_fraction=memory_fraction,
+        client=client
+    )
 
     tick = time()
     with ExitStack() as stack:
