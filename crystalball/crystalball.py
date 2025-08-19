@@ -370,7 +370,7 @@ def predict(
         within=within,
         points_only=points_only,
         num_sources=num_sources,
-        num_worker=num_workers,
+        num_workers=num_workers,
         memory_fraction=memory_fraction,
         client=client
     )
