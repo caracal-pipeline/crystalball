@@ -345,6 +345,10 @@ def predict(
         # Add to the list of writes
         writes.append(write)
 
+    # Return the delayed objects for processing elsewhere
+    if return_delayed:
+        return writes
+
     tick = time()
     with ExitStack() as stack:
         if sys.stdout.isatty():
@@ -355,8 +359,6 @@ def predict(
             stack.enter_context(EstimatingProgressBar(minimum=2 * 60, dt=5))
 
         # Submit all graph computations in parallel
-        if return_delayed:
-            return writes
         if client is not None:
             future_list = client.compute(writes)
             progress(future_list)
