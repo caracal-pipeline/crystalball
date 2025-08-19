@@ -362,6 +362,7 @@ def predict(
 ):
     
     writes = create_predict_graph(
+         ms=ms,
         sky_model=sky_model,
         output_column=output_column,
         field=field,
