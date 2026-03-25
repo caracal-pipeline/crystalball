@@ -1,3 +1,29 @@
+Reference paper
+=============
+
+Serra, Perkins & Smirnov (2022), ASPC, 532, 409
+
+ADS: https://ui.adsabs.harvard.edu/abs/2022ASPC..532..409S
+
+BibTex:
+
+..  code-block:: bash
+
+    @INPROCEEDINGS{2022ASPC..532..409S,
+      author = {{Serra}, Paolo and {Perkins}, Simon and {Smirnov}, Oleg},
+      title = "{CRYSTALBALL: A Numba and Dask-Accelerated Fourier Transform of a Sky Model into an Interferometry Dataset}",
+      booktitle = {Astronomical Data Analysis Software and Systems XXX},
+      year = 2022,
+      editor = {{Ruiz}, Jose Enrique and {Pierfedereci}, Francesco and {Teuben}, Peter},
+      series = {Astronomical Society of the Pacific Conference Series},
+      volume = {532},
+      month = jul,
+      pages = {409},
+      adsurl = {https://ui.adsabs.harvard.edu/abs/2022ASPC..532..409S},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+    }
+
+
 Applicability
 =============
 
