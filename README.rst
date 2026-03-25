@@ -39,7 +39,7 @@ in order for the build to succeed:
 - https://github.com/casacore/casacore#building-from-source
 - https://github.com/casacore/python-casacore#from-source
 
-Create and activate a Python3 virtual environment
+Create and activate a Python3 virtual environment (python 3.10 or higher)
 
 ``virtualenv -p python3 <name-of-virtualenv>``
 
