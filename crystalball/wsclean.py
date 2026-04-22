@@ -77,26 +77,23 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     # make mask of sources to include
     include = np.ones_like(wsclean_comps['Type'], bool)
 
-    if include_regions:
-        include[:] = False
-        # NB: regions is *supposed* to have a sensible "contains" interface,
-        # but it doesn't work as of Mar 2019. So hacking
-        # a kludge for circular regions for now
-        from regions import CircleSkyRegion
-
-        if not all([type(reg) is CircleSkyRegion for reg in include_regions]):
-            raise ValueError('Only circular DS( regions supported for now')
-
-        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'],
-                         unit="rad", frame=include_regions[0].center.frame)
-        include = coord.separation(
-            include_regions[0].center) <= include_regions[0].radius
-
-        for reg in include_regions[1:]:
-            include |= coord.separation(reg.center) <= reg.radius
-
-        log.info("%d of which fall within the %d inclusive regions",
-                 include.sum(), len(include_regions))
+  
+  if include_regions:
+      from regions import SkyRegion
+      include[:] = False
+      
+      # Create the coordinate objects for all components
+      coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], 
+                       unit="rad", frame=include_regions[0].center.frame)
+      
+      # Use the library's built-in contains method
+      for reg in include_regions:
+          # reg.contains(coord, wcs) works if you have a WCS, 
+          # but for SkyRegions, we check directly:
+          include |= reg.contains(coord, None) 
+  
+      log.info("%d of which fall within the %d inclusive regions",
+               include.sum(), len(include_regions))
 
     # select points
     if point_only:
