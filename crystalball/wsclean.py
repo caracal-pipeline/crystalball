@@ -78,19 +78,31 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     include = np.ones_like(wsclean_comps['Type'], bool)
 
     if include_regions:
-        from regions import SkyRegion
         include[:] = False
-        
-        # Create the coordinate objects for all components
-        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], 
-                         unit="rad", frame=include_regions[0].center.frame)
-        
-        # Use the library's built-in contains method
+
+        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], unit="rad")
+
         for reg in include_regions:
-            # reg.contains(coord, wcs) works if you have a WCS, 
-            # but for SkyRegions, we check directly:
-            include |= reg.contains(coord, None) 
-    
+            # Check if it's a Sky region (RA/Dec based)
+            # SkyRegions can check containment of SkyCoords directly in newer versions
+            # But the 'contains' method often still wants a WCS.
+            # This is the 'proper' way to do it without an image WCS:
+            try:
+                # Some versions of regions allow direct SkyCoord passing
+                include |= reg.contains(coord, None)
+            except Exception:
+                # If that fails, we fall back to 
+                # the Matplotlib approach
+                from matplotlib.path import Path
+                # Convert vertices to a 2D array
+                v_ra = reg.vertices.ra.rad
+                v_dec = reg.vertices.dec.rad
+                poly_path = Path(np.vstack((v_ra, v_dec)).T)
+
+                # Check all sources at once
+                src_array = np.vstack((coord.ra.rad, coord.dec.rad)).T
+                include |= poly_path.contains_points(src_array)
+
         log.info("%d of which fall within the %d inclusive regions",
                  include.sum(), len(include_regions))
 
