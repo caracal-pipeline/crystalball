@@ -77,7 +77,6 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     # make mask of sources to include
     include = np.ones_like(wsclean_comps['Type'], bool)
 
-  
     if include_regions:
         from regions import SkyRegion
         include[:] = False
