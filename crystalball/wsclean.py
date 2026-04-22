@@ -78,22 +78,22 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
     include = np.ones_like(wsclean_comps['Type'], bool)
 
   
-  if include_regions:
-      from regions import SkyRegion
-      include[:] = False
-      
-      # Create the coordinate objects for all components
-      coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], 
-                       unit="rad", frame=include_regions[0].center.frame)
-      
-      # Use the library's built-in contains method
-      for reg in include_regions:
-          # reg.contains(coord, wcs) works if you have a WCS, 
-          # but for SkyRegions, we check directly:
-          include |= reg.contains(coord, None) 
-  
-      log.info("%d of which fall within the %d inclusive regions",
-               include.sum(), len(include_regions))
+    if include_regions:
+        from regions import SkyRegion
+        include[:] = False
+        
+        # Create the coordinate objects for all components
+        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], 
+                         unit="rad", frame=include_regions[0].center.frame)
+        
+        # Use the library's built-in contains method
+        for reg in include_regions:
+            # reg.contains(coord, wcs) works if you have a WCS, 
+            # but for SkyRegions, we check directly:
+            include |= reg.contains(coord, None) 
+    
+        log.info("%d of which fall within the %d inclusive regions",
+                 include.sum(), len(include_regions))
 
     # select points
     if point_only:
