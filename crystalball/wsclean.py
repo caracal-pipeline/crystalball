@@ -79,21 +79,29 @@ def import_from_wsclean(wsclean_comp_list, include_regions=[],
 
     if include_regions:
         include[:] = False
-        # NB: regions is *supposed* to have a sensible "contains" interface,
-        # but it doesn't work as of Mar 2019. So hacking
-        # a kludge for circular regions for now
-        from regions import CircleSkyRegion
 
-        if not all([type(reg) is CircleSkyRegion for reg in include_regions]):
-            raise ValueError('Only circular DS( regions supported for now')
+        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'], unit="rad")
 
-        coord = SkyCoord(wsclean_comps['Ra'], wsclean_comps['Dec'],
-                         unit="rad", frame=include_regions[0].center.frame)
-        include = coord.separation(
-            include_regions[0].center) <= include_regions[0].radius
+        for reg in include_regions:
+            # Check if it's a Sky region (RA/Dec based)
+            # SkyRegions can check containment of SkyCoords directly in newer versions
+            # But the 'contains' method often still wants a WCS.
+            # This is the 'proper' way to do it without an image WCS:
+            try:
+                # Some versions of regions allow direct SkyCoord passing
+                include |= reg.contains(coord, None)
+            except Exception:
+                # If that fails, we fall back to 
+                # the Matplotlib approach
+                from matplotlib.path import Path
+                # Convert vertices to a 2D array
+                v_ra = reg.vertices.ra.rad
+                v_dec = reg.vertices.dec.rad
+                poly_path = Path(np.vstack((v_ra, v_dec)).T)
 
-        for reg in include_regions[1:]:
-            include |= coord.separation(reg.center) <= reg.radius
+                # Check all sources at once
+                src_array = np.vstack((coord.ra.rad, coord.dec.rad)).T
+                include |= poly_path.contains_points(src_array)
 
         log.info("%d of which fall within the %d inclusive regions",
                  include.sum(), len(include_regions))
